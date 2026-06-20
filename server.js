@@ -225,3 +225,150 @@ app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Pr
 app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/debug/bplan?lon=9.9384&lat=53.5672'] }));
 
 app.listen(PORT, () => console.log(`AutoBLP Backend läuft auf Port ${PORT}`));
+
+// ── B-Plan PDF Analyse via Claude API ─────────────────────────────────────
+const DRIVE_FOLDER_ID = '19YUdzbMBqEoBdR2xTxLxvReivPYZ0Nrr';
+
+async function getPdfFromDrive(planName) {
+  // Google Drive: direkte Download-URL für öffentliche Dateien
+  // Wir suchen die Datei per Name in der öffentlichen Ordner-Ansicht
+  const searchUrl = `https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`;
+  
+  // Versuche direkte Download-URL zu konstruieren
+  // Format: planName.pdf → suche in Drive
+  const possibleNames = [
+    planName + '.pdf',
+    planName.replace(/[()]/g, match => '%28%29'[['(', ')'].indexOf(match)]) + '.pdf',
+  ];
+  
+  return possibleNames[0];
+}
+
+async function downloadPdfAsBase64(planName) {
+  // Google Drive API (public files) - direkter Download über export
+  // Für öffentliche Ordner: list files dann download
+  const listUrl = `https://www.googleapis.com/drive/v3/files?q='${DRIVE_FOLDER_ID}'+in+parents+and+name+contains+'${planName}'&key=${process.env.GOOGLE_API_KEY || ''}&fields=files(id,name)`;
+  
+  try {
+    if (process.env.GOOGLE_API_KEY) {
+      const listRes = await axios.get(listUrl, { timeout: 10000 });
+      const files = listRes.data.files || [];
+      const match = files.find(f => f.name.toLowerCase().startsWith(planName.toLowerCase()));
+      
+      if (match) {
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${match.id}`;
+        const pdfRes = await axios.get(downloadUrl, {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        });
+        return Buffer.from(pdfRes.data).toString('base64');
+      }
+    }
+    
+    // Fallback: direkter Download über daten-hamburg.de (Hamburg stellt PDFs direkt bereit)
+    const hamburgUrl = `https://daten-hamburg.de/infrastruktur_bauen_wohnen/bebauungsplaene/pdfs/bplan/${planName}.pdf`;
+    console.log(`[BPlanAnalyse] Lade PDF von Hamburg: ${hamburgUrl}`);
+    const pdfRes = await axios.get(hamburgUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+    });
+    return Buffer.from(pdfRes.data).toString('base64');
+    
+  } catch(e) {
+    console.warn(`[BPlanAnalyse] PDF-Download fehlgeschlagen: ${e.message}`);
+    return null;
+  }
+}
+
+async function analysePlanMitClaude(planName, pdfBase64, frage) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
+
+  const systemPrompt = `Du bist ein erfahrener Stadtplaner und Jurist für Baurecht in Hamburg. 
+Du analysierst Baustufenpläne und Bebauungspläne der Freien und Hansestadt Hamburg.
+Deine Aufgabe ist es, aus dem vorliegenden Plan alle relevanten Festsetzungen zu extrahieren 
+und konkrete, rechtlich fundierte Einschätzungen für Bauvorhaben zu geben.
+
+Antworte immer strukturiert mit:
+1. Gebietsausweisung und Nutzungsart
+2. Bauliche Kennzahlen (GRZ, GFZ, Geschosszahl, Bauweise)
+3. Besondere Festsetzungen und Einschränkungen
+4. Gestaltungsrichtlinien (soweit aus dem Plan ableitbar)
+5. Rechtliche Einschätzung zur konkreten Frage
+6. Empfehlungen und nächste Schritte
+
+Berücksichtige dabei:
+- Die Überleitung von Baustufenplänen nach § 233 BauGB
+- BauNVO (aktuelle Fassung) für die Nutzungsart
+- BauGB für Erhaltungsverordnungen (§ 172)
+- Hamburgische Bauordnung (HBauO)
+- Typische Hamburgische Planungspraxis
+
+Weise immer darauf hin dass dies eine Orientierungsanalyse ist und keine Rechtsberatung ersetzt.`;
+
+  const userMessage = frage 
+    ? `Analysiere den Bebauungsplan "${planName}" und beantworte folgende Frage: ${frage}`
+    : `Analysiere den Bebauungsplan "${planName}" vollständig und extrahiere alle relevanten Festsetzungen.`;
+
+  const messages = [{
+    role: 'user',
+    content: pdfBase64 ? [
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: pdfBase64,
+        }
+      },
+      { type: 'text', text: userMessage }
+    ] : [
+      { type: 'text', text: userMessage + `\n\nHinweis: Das PDF konnte nicht geladen werden. Bitte gib eine allgemeine Einschätzung basierend auf deinem Wissen über Hamburger Baustufenpläne.` }
+    ]
+  }];
+
+  const response = await axios.post('https://api.anthropic.com/v1/messages', {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages,
+  }, {
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    timeout: 60000,
+  });
+
+  return response.data.content[0].text;
+}
+
+// ── API Endpoint: B-Plan PDF Analyse ──────────────────────────────────────
+app.get('/api/bplan-analyse', async (req, res) => {
+  const { planName, frage } = req.query;
+  if (!planName) return res.status(400).json({ error: 'Parameter "planName" fehlt' });
+
+  try {
+    console.log(`[BPlanAnalyse] Starte Analyse für: ${planName}`);
+    
+    // PDF laden
+    const pdfBase64 = await downloadPdfAsBase64(planName);
+    console.log(`[BPlanAnalyse] PDF geladen: ${pdfBase64 ? 'ja (' + Math.round(pdfBase64.length/1024) + ' KB base64)' : 'nein'}`);
+    
+    // Claude Analyse
+    const analyse = await analysePlanMitClaude(planName, pdfBase64, frage);
+    
+    res.json({
+      planName,
+      frage: frage || null,
+      pdfGeladen: !!pdfBase64,
+      analyse,
+      hinweis: 'Orientierungsanalyse — keine Rechtsberatung. Für verbindliche Auskünfte: Bezirksamt Hamburg.',
+    });
+
+  } catch(err) {
+    console.error(`[BPlanAnalyse] Fehler:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
