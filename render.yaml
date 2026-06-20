@@ -1,0 +1,16 @@
+# render.yaml – AutoBLP auf Render.com deployen
+# Einfach dieses File ins GitHub-Repo legen, dann auf render.com
+# "New Web Service" → GitHub-Repo auswählen → fertig.
+
+services:
+  - type: web
+    name: autoblp-backend
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        value: https://autoblp.netlify.app  # deine Frontend-URL
+    autoDeploy: true   # deploy automatisch bei jedem Git-Push
