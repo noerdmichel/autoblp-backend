@@ -152,21 +152,26 @@ async function fetchXPlanungsDaten(planName) {
 // ── Erhaltungsverordnungen ────────────────────────────────────────────────
 async function fetchErhaltungsgebiete(lon, lat) {
   const bbox = bboxUtm(lon, lat, 30);
-  const url = `${HH_WFS}/HH_WFS_Erhaltungsverordnungen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
-    + `&TYPENAMES=app:erhaltungsverordnungen&outputFormat=application/geo%2Bjson`
-    + `&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`;
-  try {
-    const r = await axios.get(url, { timeout: 15000 });
-    const feats = r.data?.features || [];
-    return feats.map(f => ({
-      name: f.properties?.name || f.properties?.gebietsname || 'Erhaltungsgebiet',
-      paragraf: '§ 172 BauGB',
-      hinweis: 'Bauliche Veränderungen an Wohngebäuden genehmigungspflichtig',
-    }));
-  } catch(e) {
-    console.warn(`[Erhaltung] ${e.message}`);
-    return [];
+  const urls = [
+    `${HH_WFS}/HH_WFS_Erhaltungsverordnungen?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=app:erhaltungsverordnungen&outputFormat=application/geo%2Bjson&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
+    `${HH_WFS}/HH_WFS_Erhaltungsverordnungen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=app:erhaltungsverordnungen&outputFormat=application/geo%2Bjson&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
+    `${HH_WFS}/HH_WFS_Erhaltungsverordnungen?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=de.hh.up:erhaltungsverordnungen&outputFormat=application/geo%2Bjson&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await axios.get(url, { timeout: 15000 });
+      const feats = r.data?.features || [];
+      console.log(`[Erhaltung] ${feats.length} Features gefunden`);
+      return feats.map(f => ({
+        name: f.properties?.name || f.properties?.gebietsname || f.properties?.bezeichnung || 'Erhaltungsgebiet',
+        paragraf: '§ 172 BauGB',
+        hinweis: 'Bauliche Veränderungen an Wohngebäuden genehmigungspflichtig',
+      }));
+    } catch(e) {
+      console.warn(`[Erhaltung] Versuch fehlgeschlagen (${e.response?.status}): ${e.message}`);
+    }
   }
+  return [];
 }
 
 // ── Haupt-Endpoint ────────────────────────────────────────────────────────
