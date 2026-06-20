@@ -1,7 +1,6 @@
 const express = require("express");
 const cors    = require("cors");
 const axios   = require("axios");
-const xml2js  = require("xml2js");
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -9,20 +8,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ── Hilfsfunktionen ────────────────────────────────────────────────────────
+// Basis-URL der neuen Hamburg OAF API
+const HH_API = "https://api.hamburg.de/datasets/v1";
 
-async function fetchXML(url) {
-  const res = await axios.get(url, { timeout: 25000 });
-  return xml2js.parseStringPromise(res.data, { explicitArray: false });
-}
-
-function dig(obj, ...keys) {
-  return keys.reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
-}
-
-// ── Schritt 1: Adresse → Koordinaten (ALKIS) ──────────────────────────────
-// FIX: typename war "app:AX_Adresse" → jetzt "ave:AX_Adresse"
-// FIX: Filter-Felder angepasst an AAA-Schema 7.1 (seit Dez 2025)
+// ── Schritt 1: Adresse → Koordinaten ──────────────────────────────────────
+// Neu: OAF API statt WFS (WFS für Adressen wurde abgeschaltet)
 async function geocode(adresse) {
   const m = adresse.match(/^(.+?)\s+(\d+\w*),?\s*(?:\d{5}\s*)?(?:Hamburg)?$/i);
   if (!m) throw new Error(`Adresse nicht erkennbar: "${adresse}"`);
@@ -30,74 +20,103 @@ async function geocode(adresse) {
   const strasse    = m[1].trim();
   const hausnummer = m[2].trim();
 
-  // Versuch 1: neuer Endpoint mit WFS 2.0 + CQL_FILTER
-  const url1 = `https://geodienste.hamburg.de/HH_WFS_ALKIS_Adressen`
-    + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
-    + `&TYPENAMES=ave:AX_Adresse`
-    + `&outputFormat=application/json`
-    + `&COUNT=1`
-    + `&CQL_FILTER=strasse='${encodeURIComponent(strasse)}'`
-    + `%20AND%20hausnummer='${encodeURIComponent(hausnummer)}'`;
+  // Versuch 1: alkis_vereinfacht OAF API – Adressen-Collection
+  const url1 = `${HH_API}/alkis_vereinfacht/collections/ap_pto/items`
+    + `?f=json&limit=5`
+    + `&filter=strasse='${strasse}' AND hausnummer='${hausnummer}'`
+    + `&filter-lang=cql-text`;
 
-  // Versuch 2: Fallback mit altem typename (app:AX_Adresse)
-  const url2 = `https://geodienste.hamburg.de/HH_WFS_ALKIS_Adressen`
-    + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
-    + `&TYPENAMES=app:AX_Adresse`
-    + `&outputFormat=application/json`
-    + `&COUNT=1`
-    + `&CQL_FILTER=strasse='${encodeURIComponent(strasse)}'`
-    + `%20AND%20hausnummer='${encodeURIComponent(hausnummer)}'`;
+  // Versuch 2: Nominatim (OpenStreetMap) als zuverlässiger Fallback
+  const url2 = `https://nominatim.openstreetmap.org/search`
+    + `?street=${encodeURIComponent(strasse + ' ' + hausnummer)}`
+    + `&city=Hamburg&country=Germany`
+    + `&format=json&limit=1&addressdetails=1`;
 
-  // Versuch 3: OGC API Features (neuer Standard seit 2025)
-  const url3 = `https://geodienste.hamburg.de/lgv-alkis-adressen/collections/adresse/items`
-    + `?strasse=${encodeURIComponent(strasse)}`
-    + `&hausnummer=${encodeURIComponent(hausnummer)}`
-    + `&f=json&limit=1`;
+  // Versuch 3: Photon (OSM-basiert, kein Rate-Limit)
+  const url3 = `https://photon.komoot.io/api/`
+    + `?q=${encodeURIComponent(strasse + ' ' + hausnummer + ', Hamburg')}`
+    + `&limit=1&lang=de`;
 
-  for (const url of [url1, url2, url3]) {
-    try {
-      const res = await axios.get(url, { timeout: 25000 });
-      const data = res.data;
-
-      // GeoJSON FeatureCollection
-      if (data.features && data.features.length > 0) {
-        const feat  = data.features[0];
-        const props = feat.properties || {};
-        const [lon, lat] = feat.geometry?.coordinates || [null, null];
-        if (lon && lat) {
-          return {
-            lon,
-            lat,
-            adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
-            bezirk:    props.bezirk    || props.Bezirk    || null,
-            stadtteil: props.stadtteil || props.Stadtteil || null,
-          };
-        }
+  // Versuch 1: HH OAF API
+  try {
+    const res  = await axios.get(url1, { timeout: 20000 });
+    const data = res.data;
+    if (data.features && data.features.length > 0) {
+      const feat  = data.features[0];
+      const props = feat.properties || {};
+      const coords = feat.geometry?.coordinates;
+      if (coords) {
+        const [lon, lat] = coords;
+        return {
+          lon, lat,
+          adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+          bezirk:    props.bezirk    || null,
+          stadtteil: props.stadtteil || null,
+        };
       }
-    } catch (e) {
-      console.warn(`[Geocode] Versuch fehlgeschlagen: ${url.substring(0, 80)}… → ${e.message}`);
     }
+  } catch (e) {
+    console.warn(`[Geocode] HH OAF fehlgeschlagen: ${e.message}`);
   }
 
-  throw new Error(`Adresse nicht gefunden: "${adresse}" – bitte Hamburger Adresse ohne PLZ angeben`);
+  // Versuch 2: Nominatim
+  try {
+    const res  = await axios.get(url2, {
+      timeout: 15000,
+      headers: { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' }
+    });
+    const data = res.data;
+    if (data && data.length > 0) {
+      const r = data[0];
+      return {
+        lon:               parseFloat(r.lon),
+        lat:               parseFloat(r.lat),
+        adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+        bezirk:            r.address?.suburb || r.address?.city_district || null,
+        stadtteil:         r.address?.neighbourhood || r.address?.suburb || null,
+      };
+    }
+  } catch (e) {
+    console.warn(`[Geocode] Nominatim fehlgeschlagen: ${e.message}`);
+  }
+
+  // Versuch 3: Photon
+  try {
+    const res  = await axios.get(url3, { timeout: 15000 });
+    const data = res.data;
+    if (data.features && data.features.length > 0) {
+      const feat  = data.features[0];
+      const props = feat.properties || {};
+      const [lon, lat] = feat.geometry?.coordinates || [];
+      if (lon && lat) {
+        return {
+          lon, lat,
+          adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+          bezirk:    props.city    || null,
+          stadtteil: props.district || props.suburb || null,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn(`[Geocode] Photon fehlgeschlagen: ${e.message}`);
+  }
+
+  throw new Error(`Adresse nicht gefunden: "${adresse}" – bitte prüfen ob die Adresse in Hamburg liegt`);
 }
 
 // ── Schritt 2: Koordinaten → B-Plan (WFS Bebauungspläne) ──────────────────
 async function fetchBPlan(lon, lat) {
-  // Punkt-in-Polygon: welcher B-Plan enthält diesen Punkt?
-  const bbox = `${lon - 0.0001},${lat - 0.0001},${lon + 0.0001},${lat + 0.0001}`;
+  const delta = 0.0002;
+  const bbox  = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
 
   const urls = [
-    // Primär: WFS 2.0
+    // Primär: OAF API
+    `${HH_API}/bebauungsplaene/collections/prosin_gesamt/items`
+      + `?f=json&limit=5&bbox=${bbox}`,
+    // Fallback: WFS 2.0 (noch aktiv laut CSV)
     `https://geodienste.hamburg.de/HH_WFS_Bebauungsplaene`
       + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
       + `&TYPENAMES=app:prosin_gesamt`
-      + `&outputFormat=application/json`
-      + `&BBOX=${bbox},EPSG:4326`,
-    // Fallback: WFS 1.1.0
-    `https://geodienste.hamburg.de/HH_WFS_Bebauungsplaene`
-      + `?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature`
-      + `&TYPENAME=app:prosin_gesamt`
       + `&outputFormat=application/json`
       + `&BBOX=${bbox},EPSG:4326`,
   ];
@@ -109,10 +128,10 @@ async function fetchBPlan(lon, lat) {
       if (data.features && data.features.length > 0) {
         const props = data.features[0].properties || {};
         return {
-          planName:      props.planname   || props.name     || props.PLANNAME || null,
-          planStatus:    props.planstatus || props.STATUS   || 'Unbekannt',
-          pdfUrl:        props.docurl     || props.pdf_url  || null,
-          begruendungUrl:props.docurl_b   || null,
+          planName:       props.planname   || props.name     || props.PLANNAME || null,
+          planStatus:     props.planstatus || props.status   || 'Unbekannt',
+          pdfUrl:         props.docurl     || props.pdf_url  || null,
+          begruendungUrl: props.docurl_b   || null,
         };
       }
     } catch (e) {
@@ -127,14 +146,11 @@ async function fetchXPlanungsDaten(planName) {
   if (!planName) return null;
 
   const urls = [
+    `${HH_API}/xplan/collections/bp_plan/items`
+      + `?f=json&limit=1&filter=name='${encodeURIComponent(planName)}'&filter-lang=cql-text`,
     `https://geodienste.hamburg.de/HH_WFS_xplan_dls`
       + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
       + `&TYPENAMES=xplan:BP_Plan`
-      + `&outputFormat=application/json`
-      + `&CQL_FILTER=name='${encodeURIComponent(planName)}'`,
-    `https://geodienste.hamburg.de/HH_WFS_xplan_dls`
-      + `?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature`
-      + `&TYPENAME=xplan:BP_Plan`
       + `&outputFormat=application/json`
       + `&CQL_FILTER=name='${encodeURIComponent(planName)}'`,
   ];
@@ -146,8 +162,8 @@ async function fetchXPlanungsDaten(planName) {
       if (data.features && data.features.length > 0) {
         const props = data.features[0].properties || {};
         return {
-          name:       props.name     || planName,
-          planArt:    props.planart  || 'BPlan',
+          name:    props.name    || planName,
+          planArt: props.planart || 'BPlan',
           baugebiete: parseBaugebiete(props),
         };
       }
@@ -159,41 +175,36 @@ async function fetchXPlanungsDaten(planName) {
 }
 
 function parseBaugebiete(props) {
-  // Versuche verschiedene Feldnamen die nach dem Schema-Update existieren könnten
-  const nutzung = props.nutzungsform || props.baugebiet || props.allgArtDerBaulNutzung || null;
-  const grz     = props.grz  || props.grundflaechenzahl || null;
-  const gfz     = props.gfz  || props.geschossfl_zahl   || null;
-  const hoehe   = props.hoehe || props.max_hoehe         || null;
+  const nutzung   = props.nutzungsform || props.baugebiet || props.allgArtDerBaulNutzung || null;
+  const grz       = props.grz  || props.grundflaechenzahl || null;
+  const gfz       = props.gfz  || props.geschossfl_zahl   || null;
   const geschosse = props.zahl_vollgeschosse || props.maxGeschosse || null;
-
   if (!nutzung && !grz && !gfz) return [];
-  return [{ nutzungsform: nutzung, grz, gfz, maxGeschosse: geschosse, maxHoehe: hoehe }];
+  return [{ nutzungsform: nutzung, grz, gfz, maxGeschosse: geschosse }];
 }
 
-// ── Schritt 4: Erhaltungsverordnungen ────────────────────────────────────
+// ── Schritt 4: Erhaltungsverordnungen ─────────────────────────────────────
 async function fetchErhaltungsgebiete(lon, lat) {
-  const bbox = `${lon - 0.0001},${lat - 0.0001},${lon + 0.0001},${lat + 0.0001}`;
+  const delta = 0.0002;
+  const bbox  = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
 
   const urls = [
+    `${HH_API}/erhaltungsverordnungen/collections/erhaltungsverordnungen/items`
+      + `?f=json&limit=5&bbox=${bbox}`,
     `https://geodienste.hamburg.de/HH_WFS_Erhaltungsverordnungen`
       + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
       + `&TYPENAMES=app:erhaltungsverordnungen`
-      + `&outputFormat=application/json`
-      + `&BBOX=${bbox},EPSG:4326`,
-    `https://geodienste.hamburg.de/HH_WFS_Erhaltungsverordnungen`
-      + `?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature`
-      + `&TYPENAME=app:erhaltungsverordnungen`
       + `&outputFormat=application/json`
       + `&BBOX=${bbox},EPSG:4326`,
   ];
 
   for (const url of urls) {
     try {
-      const res  = await axios.get(url, { timeout: 25000 });
+      const res  = await axios.get(url, { timeout: 20000 });
       const data = res.data;
       if (data.features && data.features.length > 0) {
         return data.features.map(f => ({
-          name:    f.properties?.name    || f.properties?.gebietsname || 'Erhaltungsgebiet',
+          name:    f.properties?.name || f.properties?.gebietsname || 'Erhaltungsgebiet',
           paragraf:'§ 172 BauGB',
           hinweis: 'Bauliche Veränderungen an Wohngebäuden genehmigungspflichtig',
         }));
@@ -206,29 +217,6 @@ async function fetchErhaltungsgebiete(lon, lat) {
   return [];
 }
 
-// ── Polygon-Analyse: alle B-Pläne im Bereich ─────────────────────────────
-async function fetchBPlaeneImPolygon(bbox) {
-  const url = `https://geodienste.hamburg.de/HH_WFS_Bebauungsplaene`
-    + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
-    + `&TYPENAMES=app:prosin_gesamt`
-    + `&outputFormat=application/json`
-    + `&BBOX=${bbox},EPSG:4326`;
-
-  try {
-    const res  = await axios.get(url, { timeout: 30000 });
-    const data = res.data;
-    return (data.features || []).map(f => ({
-      planName:   f.properties?.planname || f.properties?.name || 'Unbekannt',
-      planStatus: f.properties?.planstatus || 'Unbekannt',
-      flaeche:    f.properties?.flaeche || null,
-      pdfUrl:     f.properties?.docurl  || null,
-    }));
-  } catch (e) {
-    console.warn(`[Polygon] BPläne fehlgeschlagen: ${e.message}`);
-    return [];
-  }
-}
-
 // ── API Endpoint: Adressanalyse ────────────────────────────────────────────
 app.get('/api/analyse', async (req, res) => {
   const adresse = req.query.adresse;
@@ -239,17 +227,14 @@ app.get('/api/analyse', async (req, res) => {
   try {
     console.log(`[AutoBLP] Analyse für: ${adresse}`);
 
-    // Schritt 1: Geocoding
     const koordinaten = await geocode(adresse);
     console.log(`[AutoBLP] Koordinaten: ${koordinaten.lon}, ${koordinaten.lat}`);
 
-    // Schritte 2-4 parallel
     const [bplan, erhaltung] = await Promise.all([
       fetchBPlan(koordinaten.lon, koordinaten.lat),
       fetchErhaltungsgebiete(koordinaten.lon, koordinaten.lat),
     ]);
 
-    // Schritt 3: XPlanung (braucht B-Plan-Name)
     const xplanung = bplan?.planName
       ? await fetchXPlanungsDaten(bplan.planName)
       : null;
@@ -279,11 +264,11 @@ app.get('/api/analyse', async (req, res) => {
 app.get('/api/polygon', async (req, res) => {
   const { bbox, lat, lon } = req.query;
   if (!bbox) {
-    return res.status(400).json({ error: 'Parameter "bbox" fehlt (minLon,minLat,maxLon,maxLat)' });
+    return res.status(400).json({ error: 'Parameter "bbox" fehlt' });
   }
 
   try {
-    const bplaene = await fetchBPlaeneImPolygon(bbox);
+    const bplaene   = await fetchBPlaeneImBbox(bbox);
     const erhaltung = lat && lon
       ? await fetchErhaltungsgebiete(parseFloat(lon), parseFloat(lat))
       : [];
@@ -298,21 +283,41 @@ app.get('/api/polygon', async (req, res) => {
       erhaltungsgebiete: erhaltung,
       anzahl:            bplaene.length,
     });
-
   } catch (err) {
-    console.error(`[AutoBLP Polygon] Fehler:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Health Check ───────────────────────────────────────────────────────────
-app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Proxy' }));
+async function fetchBPlaeneImBbox(bbox) {
+  const urls = [
+    `${HH_API}/bebauungsplaene/collections/prosin_gesamt/items?f=json&limit=20&bbox=${bbox}`,
+    `https://geodienste.hamburg.de/HH_WFS_Bebauungsplaene`
+      + `?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
+      + `&TYPENAMES=app:prosin_gesamt&outputFormat=application/json&BBOX=${bbox},EPSG:4326`,
+  ];
+  for (const url of urls) {
+    try {
+      const res  = await axios.get(url, { timeout: 30000 });
+      const data = res.data;
+      if (data.features) {
+        return data.features.map(f => ({
+          planName:   f.properties?.planname || f.properties?.name || 'Unbekannt',
+          planStatus: f.properties?.planstatus || 'Unbekannt',
+          pdfUrl:     f.properties?.docurl || null,
+        }));
+      }
+    } catch (e) {
+      console.warn(`[Polygon] fehlgeschlagen: ${e.message}`);
+    }
+  }
+  return [];
+}
 
-app.get('/', (_, res) => res.json({ 
-  status: 'ok', 
-  endpoints: ['/health', '/api/analyse?adresse=...', '/api/polygon?bbox=...'] 
+// ── Health & Root ──────────────────────────────────────────────────────────
+app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Proxy' }));
+app.get('/', (_, res) => res.json({
+  status: 'ok',
+  endpoints: ['/health', '/api/analyse?adresse=...', '/api/polygon?bbox=...']
 }));
 
-app.listen(PORT, () => {
-  console.log(`AutoBLP Backend läuft auf Port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`AutoBLP Backend läuft auf Port ${PORT}`));
