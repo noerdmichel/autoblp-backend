@@ -114,9 +114,10 @@ async function fetchBPlan(lon, lat) {
         const p = feats[0].properties || {};
         console.log(`[BPlan] Props:`, JSON.stringify(p).substring(0, 200));
         return {
-          planName:   p.planname || p.name || p.PLANNAME || p.bezeichnung || null,
-          planStatus: p.planstatus || p.status || 'festgesetzt',
-          pdfUrl:     p.docurl || p.url || null,
+          planName:          p.geltendes_planrecht || p.planname || p.name || null,
+          planStatus:        p.planstatus || p.status || 'festgesetzt',
+          pdfUrl:            p.planrecht || p.docurl || null,
+          feststellungsdatum: p.feststellungsdatum || null,
         };
       }
     } catch(e) {
