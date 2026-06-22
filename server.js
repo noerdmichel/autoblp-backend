@@ -11,11 +11,10 @@ app.use(express.json());
 const HH_WFS = "https://geodienste.hamburg.de";
 
 // ── WGS84 → UTM32N (EPSG:25832) Näherungsformel für Hamburg ──────────────
-// Genau genug für BBOX-Abfragen (Fehler < 1m)
 function wgs84ToUtm32(lon, lat) {
   const a = 6378137.0, f = 1/298.257223563;
   const b = a*(1-f), e2 = 1-(b/a)**2;
-  const k0 = 0.9996, lon0 = 9 * Math.PI/180; // Zone 32
+  const k0 = 0.9996, lon0 = 9 * Math.PI/180;
   const phi = lat*Math.PI/180, lam = lon*Math.PI/180;
   const N = a/Math.sqrt(1-e2*Math.sin(phi)**2);
   const T = Math.tan(phi)**2, C = e2/(1-e2)*Math.cos(phi)**2;
@@ -36,24 +35,45 @@ function bboxUtm(lon, lat, delta=30) {
 }
 
 // ── Geocoding: Photon → Nominatim ─────────────────────────────────────────
+// Fix: PLZ-Erkennung + Photon Hamburg-Bounding-Box + Nominatim structured search
 async function geocode(adresse) {
-  const m = adresse.match(/^(.+?)\s+(\d+\w*),?\s*(?:\d{5}\s*)?(?:Hamburg)?$/i);
+  // PLZ optional: "Marktstraße 20a, 20357 Hamburg" oder "Marktstraße 20a, Hamburg"
+  const m = adresse.match(/^(.+?)\s+(\d+\w*),?\s*(?:(\d{5})\s*)?(?:Hamburg)?$/i);
   if (!m) throw new Error(`Adresse nicht erkennbar: "${adresse}"`);
-  const strasse = m[1].trim(), hausnummer = m[2].trim();
+  const strasse = m[1].trim(), hausnummer = m[2].trim(), plz = m[3] || null;
 
-  // Photon (kein Rate-Limit, schnell)
+  const query = plz
+    ? `${strasse} ${hausnummer}, ${plz} Hamburg, Germany`
+    : `${strasse} ${hausnummer}, Hamburg, Germany`;
+
+  // Photon mit Hamburg-Bounding-Box — verhindert Treffer in anderen Städten
+  // und disambiguiert Straßen die in Hamburg mehrfach existieren (z.B. Marktstraße)
   try {
     const r = await axios.get('https://photon.komoot.io/api/', {
-      params: { q: `${strasse} ${hausnummer}, Hamburg, Germany`, limit: 3, lang: 'de' },
+      params: {
+        q: query,
+        limit: 5,
+        lang: 'de',
+        bbox: '8.4,53.3,10.3,53.75', // Hamburg Bounding Box
+      },
       timeout: 12000
     });
-    const feat = r.data?.features?.find(f =>
-      f.properties?.country === 'Germany' &&
-      (f.properties?.city === 'Hamburg' || f.properties?.state === 'Hamburg')
-    ) || r.data?.features?.[0];
+    const feats = r.data?.features || [];
+
+    // Bestes Feature: in Hamburg + Hausnummer stimmt überein
+    const feat = feats.find(f => {
+      const p = f.properties;
+      const inHH = p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
+      const hnMatch = !p?.housenumber || p.housenumber.toLowerCase().startsWith(hausnummer.toLowerCase());
+      return inHH && hnMatch;
+    }) || feats.find(f => {
+      const p = f.properties;
+      return p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
+    });
+
     if (feat) {
       const [lon, lat] = feat.geometry.coordinates;
-      console.log(`[Geocode] Photon OK: lat=${lat}, lon=${lon}`);
+      console.log(`[Geocode] Photon OK: lat=${lat}, lon=${lon}, suburb=${feat.properties?.suburb}`);
       return {
         lon, lat,
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
@@ -63,10 +83,14 @@ async function geocode(adresse) {
     }
   } catch(e) { console.warn(`[Geocode] Photon: ${e.message}`); }
 
-  // Nominatim Fallback
+  // Nominatim Fallback — structured search für bessere Eindeutigkeit
   try {
+    const params = plz
+      ? { street: `${hausnummer} ${strasse}`, postalcode: plz, city: 'Hamburg', country: 'de', format: 'json', limit: 1, addressdetails: 1 }
+      : { street: `${hausnummer} ${strasse}`, city: 'Hamburg', country: 'de', format: 'json', limit: 1, addressdetails: 1 };
+
     const r = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: { q: `${strasse} ${hausnummer}, Hamburg`, format: 'json', limit: 1, addressdetails: 1, countrycodes: 'de' },
+      params,
       timeout: 12000,
       headers: { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' }
     });
@@ -76,8 +100,8 @@ async function geocode(adresse) {
       return {
         lon: parseFloat(d.lon), lat: parseFloat(d.lat),
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
-        bezirk: d.address?.suburb || d.address?.city_district || null,
-        stadtteil: d.address?.neighbourhood || d.address?.suburb || null,
+        bezirk: d.address?.city_district || d.address?.suburb || null,
+        stadtteil: d.address?.suburb || d.address?.neighbourhood || null,
       };
     }
   } catch(e) { console.warn(`[Geocode] Nominatim: ${e.message}`); }
@@ -91,15 +115,12 @@ async function fetchBPlan(lon, lat) {
   console.log(`[BPlan] UTM32-BBOX: ${bbox}`);
 
   const versuche = [
-    // Festgestellte B-Pläne (primär)
     `${HH_WFS}/HH_WFS_Bebauungsplaene?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
       + `&TYPENAMES=app:hh_hh_festgestellt&outputFormat=application/geo%2Bjson`
       + `&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
-    // prosin_gesamt (alle)
     `${HH_WFS}/HH_WFS_Bebauungsplaene?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature`
       + `&TYPENAMES=app:prosin_gesamt&outputFormat=application/geo%2Bjson`
       + `&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
-    // WFS 1.1.0 Fallback
     `${HH_WFS}/HH_WFS_Bebauungsplaene?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature`
       + `&TYPENAME=app:prosin_gesamt&outputFormat=application/geo%2Bjson`
       + `&BBOX=${bbox},urn:ogc:def:crs:EPSG::25832`,
@@ -114,9 +135,9 @@ async function fetchBPlan(lon, lat) {
         const p = feats[0].properties || {};
         console.log(`[BPlan] Props:`, JSON.stringify(p).substring(0, 200));
         return {
-          planName:          p.geltendes_planrecht || p.planname || p.name || null,
-          planStatus:        p.planstatus || p.status || 'festgesetzt',
-          pdfUrl:            p.planrecht || p.docurl || null,
+          planName:           p.geltendes_planrecht || p.planname || p.name || null,
+          planStatus:         p.planstatus || p.status || 'festgesetzt',
+          pdfUrl:             p.planrecht || p.docurl || null,
           feststellungsdatum: p.feststellungsdatum || null,
         };
       }
@@ -220,60 +241,46 @@ app.get('/debug/bplan', async (req, res) => {
   }
 });
 
+// ── Debug: Geocoding testen ───────────────────────────────────────────────
+app.get('/debug/geocode', async (req, res) => {
+  const adresse = req.query.adresse || 'Marktstraße 20a, Hamburg';
+  try {
+    const result = await geocode(adresse);
+    res.json({ adresse, result });
+  } catch(e) {
+    res.json({ adresse, error: e.message });
+  }
+});
+
 app.get('/api/polygon', async (req, res) => res.json({ bebauungsplaene: [], erhaltungsgebiete: [], anzahl: 0 }));
 app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Proxy' }));
-app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/debug/bplan?lon=9.9384&lat=53.5672'] }));
+app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/debug/bplan', '/debug/geocode?adresse=...'] }));
 
 app.listen(PORT, () => console.log(`AutoBLP Backend läuft auf Port ${PORT}`));
 
 // ── B-Plan PDF Analyse via Claude API ─────────────────────────────────────
 const DRIVE_FOLDER_ID = '19YUdzbMBqEoBdR2xTxLxvReivPYZ0Nrr';
 
-async function getPdfFromDrive(planName) {
-  // Google Drive: direkte Download-URL für öffentliche Dateien
-  // Wir suchen die Datei per Name in der öffentlichen Ordner-Ansicht
-  const searchUrl = `https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`;
-  
-  // Versuche direkte Download-URL zu konstruieren
-  // Format: planName.pdf → suche in Drive
-  const possibleNames = [
-    planName + '.pdf',
-    planName.replace(/[()]/g, match => '%28%29'[['(', ')'].indexOf(match)]) + '.pdf',
-  ];
-  
-  return possibleNames[0];
-}
-
 async function downloadPdfAsBase64(planName) {
-  // Google Drive API (public files) - direkter Download über export
-  // Für öffentliche Ordner: list files dann download
-  const listUrl = `https://www.googleapis.com/drive/v3/files?q='${DRIVE_FOLDER_ID}'+in+parents+and+name+contains+'${planName}'&key=${process.env.GOOGLE_API_KEY || ''}&fields=files(id,name)`;
-  
   try {
     if (process.env.GOOGLE_API_KEY) {
+      const listUrl = `https://www.googleapis.com/drive/v3/files?q='${DRIVE_FOLDER_ID}'+in+parents+and+name+contains+'${planName}'&key=${process.env.GOOGLE_API_KEY}&fields=files(id,name)`;
       const listRes = await axios.get(listUrl, { timeout: 10000 });
       const files = listRes.data.files || [];
       const match = files.find(f => f.name.toLowerCase().startsWith(planName.toLowerCase()));
-      
       if (match) {
         const downloadUrl = `https://drive.google.com/uc?export=download&id=${match.id}`;
-        const pdfRes = await axios.get(downloadUrl, {
-          responseType: 'arraybuffer',
-          timeout: 30000,
-        });
+        const pdfRes = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 30000 });
         return Buffer.from(pdfRes.data).toString('base64');
       }
     }
-    
-    // Fallback: direkter Download über daten-hamburg.de (Hamburg stellt PDFs direkt bereit)
+
+    // Fallback: direkter Download über daten-hamburg.de
     const hamburgUrl = `https://daten-hamburg.de/infrastruktur_bauen_wohnen/bebauungsplaene/pdfs/bplan/${planName}.pdf`;
     console.log(`[BPlanAnalyse] Lade PDF von Hamburg: ${hamburgUrl}`);
-    const pdfRes = await axios.get(hamburgUrl, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    });
+    const pdfRes = await axios.get(hamburgUrl, { responseType: 'arraybuffer', timeout: 30000 });
     return Buffer.from(pdfRes.data).toString('base64');
-    
+
   } catch(e) {
     console.warn(`[BPlanAnalyse] PDF-Download fehlgeschlagen: ${e.message}`);
     return null;
@@ -306,21 +313,14 @@ Berücksichtige dabei:
 
 Weise immer darauf hin dass dies eine Orientierungsanalyse ist und keine Rechtsberatung ersetzt.`;
 
-  const userMessage = frage 
+  const userMessage = frage
     ? `Analysiere den Bebauungsplan "${planName}" und beantworte folgende Frage: ${frage}`
     : `Analysiere den Bebauungsplan "${planName}" vollständig und extrahiere alle relevanten Festsetzungen.`;
 
   const messages = [{
     role: 'user',
     content: pdfBase64 ? [
-      {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: pdfBase64,
-        }
-      },
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
       { type: 'text', text: userMessage }
     ] : [
       { type: 'text', text: userMessage + `\n\nHinweis: Das PDF konnte nicht geladen werden. Bitte gib eine allgemeine Einschätzung basierend auf deinem Wissen über Hamburger Baustufenpläne.` }
@@ -351,14 +351,11 @@ app.get('/api/bplan-analyse', async (req, res) => {
 
   try {
     console.log(`[BPlanAnalyse] Starte Analyse für: ${planName}`);
-    
-    // PDF laden
     const pdfBase64 = await downloadPdfAsBase64(planName);
     console.log(`[BPlanAnalyse] PDF geladen: ${pdfBase64 ? 'ja (' + Math.round(pdfBase64.length/1024) + ' KB base64)' : 'nein'}`);
-    
-    // Claude Analyse
+
     const analyse = await analysePlanMitClaude(planName, pdfBase64, frage);
-    
+
     res.json({
       planName,
       frage: frage || null,
@@ -366,7 +363,6 @@ app.get('/api/bplan-analyse', async (req, res) => {
       analyse,
       hinweis: 'Orientierungsanalyse — keine Rechtsberatung. Für verbindliche Auskünfte: Bezirksamt Hamburg.',
     });
-
   } catch(err) {
     console.error(`[BPlanAnalyse] Fehler:`, err.message);
     res.status(500).json({ error: err.message });
