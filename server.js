@@ -252,6 +252,61 @@ app.get('/debug/geocode', async (req, res) => {
   }
 });
 
+// ── Autocomplete Endpoint ─────────────────────────────────────────────────
+app.get('/api/autocomplete', async (req, res) => {
+  const q = req.query.q;
+  if (!q || q.length < 3) return res.json([]);
+
+  // Query parsen: "Marktstraße 20a" → street + housenumber
+  const m = q.trim().match(/^(.+?)\s+(\d+\w*)$/);
+  const streetPart = m ? m[1].trim() : q.trim();
+  const hnPart = m ? m[2] : null;
+
+  const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=de';
+  const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
+
+  // 3 parallele Queries
+  const urls = [
+    hnPart ? `${base}&city=Hamburg&street=${encodeURIComponent(hnPart + ' ' + streetPart)}` : null,
+    `${base}&city=Hamburg&street=${encodeURIComponent(streetPart)}`,
+    `${base}&q=${encodeURIComponent(q + ', Hamburg')}`,
+  ].filter(Boolean);
+
+  try {
+    const results = await Promise.all(
+      urls.map(url => axios.get(url, { headers, timeout: 6000 })
+        .then(r => r.data || [])
+        .catch(() => []))
+    );
+
+    const seen = new Set();
+    const items = [];
+    for (const batch of results) {
+      for (const result of batch) {
+        const a = result.address || {};
+        const inHH = a.city === 'Hamburg' || a.state === 'Hamburg' || a.city_district || a.borough;
+        if (!inHH) continue;
+        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.living_street || '';
+        if (!road) continue;
+        const hn = a.house_number ? ` ${a.house_number}` : '';
+        const label = `${road}${hn}, Hamburg`;
+        if (seen.has(label)) continue;
+        seen.add(label);
+        const sub = a.suburb || a.city_district || a.neighbourhood || a.borough || 'Hamburg';
+        items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
+        if (items.length >= 7) break;
+      }
+      if (items.length >= 7) break;
+    }
+
+    console.log(`[Autocomplete] "${q}" → ${items.length} Treffer`);
+    res.json(items);
+  } catch (err) {
+    console.error(`[Autocomplete] Fehler: ${err.message}`);
+    res.json([]);
+  }
+});
+
 app.get('/api/polygon', async (req, res) => res.json({ bebauungsplaene: [], erhaltungsgebiete: [], anzahl: 0 }));
 app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Proxy' }));
 app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/debug/bplan', '/debug/geocode?adresse=...'] }));
