@@ -275,8 +275,11 @@ app.get('/api/autocomplete', async (req, res) => {
   try {
     const results = await Promise.all(
       urls.map(url => axios.get(url, { headers, timeout: 6000 })
-        .then(r => r.data || [])
-        .catch(() => []))
+        .then(r => {
+          console.log(`[AC] URL: ${url.substring(50)} → ${r.data?.length || 0} Treffer, erstes: ${JSON.stringify((r.data?.[0]?.address||{})).substring(0,150)}`);
+          return r.data || [];
+        })
+        .catch(e => { console.warn(`[AC] Fehler: ${e.message}`); return []; }))
     );
 
     const seen = new Set();
@@ -284,22 +287,21 @@ app.get('/api/autocomplete', async (req, res) => {
     for (const batch of results) {
       for (const result of batch) {
         const a = result.address || {};
-        const inHH = a.city === 'Hamburg' || a.state === 'Hamburg' || a.city_district || a.borough;
-        if (!inHH) continue;
-        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.living_street || '';
+        // Filter: muss eine Straße haben — Hamburg wird durch city=Hamburg im Query sichergestellt
+        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.living_street || a.residential || '';
         if (!road) continue;
         const hn = a.house_number ? ` ${a.house_number}` : '';
         const label = `${road}${hn}, Hamburg`;
         if (seen.has(label)) continue;
         seen.add(label);
-        const sub = a.suburb || a.city_district || a.neighbourhood || a.borough || 'Hamburg';
+        const sub = a.suburb || a.city_district || a.neighbourhood || a.borough || a.town || 'Hamburg';
         items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
         if (items.length >= 7) break;
       }
       if (items.length >= 7) break;
     }
 
-    console.log(`[Autocomplete] "${q}" → ${items.length} Treffer`);
+    console.log(`[Autocomplete] "${q}" → ${items.length} Items`);
     res.json(items);
   } catch (err) {
     console.error(`[Autocomplete] Fehler: ${err.message}`);
