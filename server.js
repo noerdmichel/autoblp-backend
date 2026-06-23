@@ -274,19 +274,24 @@ app.get('/api/autocomplete', async (req, res) => {
   const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
   const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=de';
 
-  // Prüfen ob Hausnummer enthalten ist (z.B. "Marktstraße 20a")
+  // Query parsen: Straße + Hausnummer trennen
   const hasNumber = /\d/.test(q);
+  const mParse = q.trim().match(/^(.+?)\s+(\d+\w*)$/);
+  const streetPart = mParse ? mParse[1].trim() : q.trim();
+  const hnPart = mParse ? mParse[2] : null;
 
   try {
     let items = [];
     const seen = new Set();
 
     if (hasNumber) {
-      // Mit Hausnummer: direkte Adresssuche
-      // Fallback: wenn "20a" nichts liefert, versuche "20"
+      // Mit Hausnummer: mehrere Query-Varianten versuchen
       const queries = [q];
-      const noSuffix = q.replace(/([a-z])$/i, '').trim();
+      // Fallback 1: ohne Buchstaben-Suffix (20a → 20)
+      const noSuffix = q.replace(/([a-zA-Z])$/, '').trim();
       if (noSuffix !== q) queries.push(noSuffix);
+      // Fallback 2: nur Straßenname
+      if (streetPart !== q) queries.push(streetPart);
 
       for (const query of queries) {
         const url = `${base}&q=${encodeURIComponent(query + ', Hamburg')}`;
