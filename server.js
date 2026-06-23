@@ -298,7 +298,9 @@ app.get('/api/autocomplete', async (req, res) => {
           const a = result.address || {};
           const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
           if (!road) continue;
-          const hn = a.house_number ? ` ${a.house_number}` : '';
+          // Wenn Fallback (query !== q): benutze originale HN aus q
+          const nomHn = a.house_number || '';
+          const hn = nomHn ? ` ${nomHn}` : '';
           const label = `${road}${hn}, Hamburg`;
           if (seen.has(label)) continue;
           seen.add(label);
