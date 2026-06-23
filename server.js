@@ -242,6 +242,20 @@ app.get('/debug/bplan', async (req, res) => {
 });
 
 // ── Debug: Geocoding testen ───────────────────────────────────────────────
+// ── Debug: Rohe Autocomplete-Antwort von Nominatim ──────────────────────
+app.get('/debug/autocomplete', async (req, res) => {
+  const q = req.query.q || 'Marktstraße';
+  const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
+  const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=de';
+  const url = `${base}&q=${encodeURIComponent(q + ', Hamburg, Germany')}`;
+  try {
+    const r = await axios.get(url, { headers, timeout: 8000 });
+    res.json({ url, count: r.data.length, results: r.data });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 app.get('/debug/geocode', async (req, res) => {
   const adresse = req.query.adresse || 'Marktstraße 20a, Hamburg';
   try {
