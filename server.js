@@ -172,7 +172,8 @@ async function fetchXPlanungsDaten(planName) {
 
 // ── Erhaltungsverordnungen ────────────────────────────────────────────────
 async function fetchErhaltungsgebiete(lon, lat) {
-  const bbox = bboxUtm(lon, lat, 30);
+  // delta=500: Erhaltungsverordnungen sind große Gebiete, kleine BBOX verfehlt sie
+  const bbox = bboxUtm(lon, lat, 500);
   // Korrekter Endpoint (Stand 2025): HH_WFS_Erhaltungsverordnung (ohne 'en')
   // Layer: de.hh.up:erhaltungsverordnung
   const urls = [
