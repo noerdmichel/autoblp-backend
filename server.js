@@ -283,22 +283,30 @@ app.get('/api/autocomplete', async (req, res) => {
 
     if (hasNumber) {
       // Mit Hausnummer: direkte Adresssuche
-      const url = `${base}&q=${encodeURIComponent(q + ', Hamburg')}`;
-      const r = await axios.get(url, { headers, timeout: 8000 });
-      const data = r.data || [];
-      console.log(`[AC] Adresse "${q}" → ${data.length} Treffer`);
+      // Fallback: wenn "20a" nichts liefert, versuche "20"
+      const queries = [q];
+      const noSuffix = q.replace(/([a-z])$/i, '').trim();
+      if (noSuffix !== q) queries.push(noSuffix);
 
-      for (const result of data) {
-        const a = result.address || {};
-        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
-        if (!road) continue;
-        const hn = a.house_number ? ` ${a.house_number}` : '';
-        const label = `${road}${hn}, Hamburg`;
-        if (seen.has(label)) continue;
-        seen.add(label);
-        const sub = a.suburb || a.neighbourhood || a.borough || 'Hamburg';
-        items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
-        if (items.length >= 7) break;
+      for (const query of queries) {
+        const url = `${base}&q=${encodeURIComponent(query + ', Hamburg')}`;
+        const r = await axios.get(url, { headers, timeout: 8000 });
+        const data = r.data || [];
+        console.log(`[AC] Adresse "${query}" → ${data.length} Treffer`);
+
+        for (const result of data) {
+          const a = result.address || {};
+          const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
+          if (!road) continue;
+          const hn = a.house_number ? ` ${a.house_number}` : '';
+          const label = `${road}${hn}, Hamburg`;
+          if (seen.has(label)) continue;
+          seen.add(label);
+          const sub = a.suburb || a.neighbourhood || a.borough || 'Hamburg';
+          items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
+          if (items.length >= 7) break;
+        }
+        if (items.length > 0) break;
       }
     } else {
       // Nur Straßenname: Straßen suchen und als Vorschlag anbieten
