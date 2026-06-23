@@ -274,38 +274,58 @@ app.get('/api/autocomplete', async (req, res) => {
   const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
   const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=de';
 
-  // Freitext-Query mit Hamburg — robuster als structured search
-  // Nominatim gibt bei city=Hamburg nur Treffer wo city-Feld exakt 'Hamburg' ist
-  // Viele Hamburger Adressen haben dort aber suburb/district statt city
-  const url = `${base}&q=${encodeURIComponent(q + ', Hamburg, Germany')}`;
+  // Prüfen ob Hausnummer enthalten ist (z.B. "Marktstraße 20a")
+  const hasNumber = /\d/.test(q);
 
   try {
-    const r = await axios.get(url, { headers, timeout: 8000 });
-    const data = r.data || [];
-    console.log(`[AC] "${q}" → ${data.length} Nominatim-Treffer`);
-    if (data.length > 0) {
-      console.log(`[AC] Erstes Ergebnis: ${JSON.stringify(data[0].address).substring(0, 200)}`);
-    }
-
+    let items = [];
     const seen = new Set();
-    const items = [];
-    for (const result of data) {
-      const a = result.address || {};
-      // Straße extrahieren
-      const road = a.road || a.pedestrian || a.footway || a.path ||
-                   a.cycleway || a.living_street || a.residential || '';
-      if (!road) continue;
-      const hn = a.house_number ? ` ${a.house_number}` : '';
-      const label = `${road}${hn}, Hamburg`;
-      if (seen.has(label)) continue;
-      seen.add(label);
-      const sub = a.suburb || a.city_district || a.neighbourhood ||
-                  a.borough || a.town || 'Hamburg';
-      items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
-      if (items.length >= 7) break;
+
+    if (hasNumber) {
+      // Mit Hausnummer: direkte Adresssuche
+      const url = `${base}&q=${encodeURIComponent(q + ', Hamburg')}`;
+      const r = await axios.get(url, { headers, timeout: 8000 });
+      const data = r.data || [];
+      console.log(`[AC] Adresse "${q}" → ${data.length} Treffer`);
+
+      for (const result of data) {
+        const a = result.address || {};
+        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
+        if (!road) continue;
+        const hn = a.house_number ? ` ${a.house_number}` : '';
+        const label = `${road}${hn}, Hamburg`;
+        if (seen.has(label)) continue;
+        seen.add(label);
+        const sub = a.suburb || a.neighbourhood || a.borough || 'Hamburg';
+        items.push({ label, sub: sub === 'Hamburg' ? 'Hamburg' : sub });
+        if (items.length >= 7) break;
+      }
+    } else {
+      // Nur Straßenname: Straßen suchen und als Vorschlag anbieten
+      const url = `${base}&q=${encodeURIComponent(q + ', Hamburg')}`;
+      const r = await axios.get(url, { headers, timeout: 8000 });
+      const data = r.data || [];
+      console.log(`[AC] Straße "${q}" → ${data.length} Treffer`);
+
+      for (const result of data) {
+        const a = result.address || {};
+        const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
+        if (!road) continue;
+        // Straßenvorschlag ohne Nummer — Sub zeigt Stadtteil
+        const label = `${road}, Hamburg`;
+        if (seen.has(label)) continue;
+        seen.add(label);
+        const sub = a.suburb || a.neighbourhood || a.borough || 'Hamburg';
+        items.push({
+          label,
+          sub: (sub === 'Hamburg' ? '' : sub + ' · ') + 'Hausnummer eingeben',
+          streetOnly: true  // Signal fürs Frontend: nur Straße, noch keine Analyse
+        });
+        if (items.length >= 5) break;
+      }
     }
 
-    console.log(`[Autocomplete] "${q}" → ${items.length} Items zurückgegeben`);
+    console.log(`[Autocomplete] "${q}" → ${items.length} Items`);
     res.json(items);
   } catch (err) {
     console.error(`[Autocomplete] Fehler: ${err.message}`);
