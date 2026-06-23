@@ -298,9 +298,9 @@ app.get('/api/autocomplete', async (req, res) => {
           const a = result.address || {};
           const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
           if (!road) continue;
-          // Wenn Fallback (query !== q): benutze originale HN aus q
+          // Hausnummer: aus Nominatim oder aus Original-Query
           const nomHn = a.house_number || '';
-          const hn = nomHn ? ` ${nomHn}` : '';
+          const hn = nomHn ? ` ${nomHn}` : (hnPart ? ` ${hnPart}` : '');
           const label = `${road}${hn}, Hamburg`;
           if (seen.has(label)) continue;
           seen.add(label);
