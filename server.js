@@ -46,17 +46,25 @@ async function geocode(adresse) {
     ? `${strasse} ${hausnummer}, ${plz} Hamburg, Germany`
     : `${strasse} ${hausnummer}, Hamburg, Germany`;
 
-  // Strategie 0: ALKIS Hauskoordinaten (offiziell, exakt auf Gebäude)
+  // Strategie 0: Nominatim — bevorzuge echte Gebäude-Koordinaten (nicht highway)
   try {
-    const alkis = await fetchAlkisKoordinaten(strasse, hausnummer);
-    if (alkis) {
+    const buildingUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=de&limit=5&q=${encodeURIComponent(strasse + ' ' + hausnummer + ', Hamburg')}`;
+    const br = await axios.get(buildingUrl, { timeout: 8000, headers: { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' } });
+    const data = br.data || [];
+    // Bevorzuge Gebäude, POIs, historic — nicht Straßen (highway)
+    const best = data.find(x => x.class !== 'highway') || data[0];
+    if (best) {
+      const isExact = best.class !== 'highway';
+      console.log(`[Geocode] Nominatim: lat=${best.lat}, lon=${best.lon}, class=${best.class}, exact=${isExact}`);
       return {
-        lon: alkis.lon, lat: alkis.lat,
+        lon: parseFloat(best.lon), lat: parseFloat(best.lat),
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
-        bezirk: null, stadtteil: null,
+        bezirk: best.address?.city_district || best.address?.suburb || null,
+        stadtteil: best.address?.suburb || null,
+        positionExakt: isExact, // Signal fürs Frontend: Marker-Hinweis
       };
     }
-  } catch(e) { console.warn(`[Geocode] ALKIS: ${e.message}`); }
+  } catch(e) { console.warn(`[Geocode] Gebäude-Suche: ${e.message}`); }
 
   // Photon Strategie 1: gezielt nach Gebäude/Hausnummer suchen (place:house)
   // Das liefert die exakten Gebäude-Koordinaten, nicht die Straßenmitte
@@ -324,6 +332,20 @@ app.get('/debug/bplan', async (req, res) => {
 });
 
 // ── Debug: Geocoding testen ───────────────────────────────────────────────
+// ── Debug: Google Drive Ordner-Inhalt ────────────────────────────────────
+app.get('/api/drive-files', async (req, res) => {
+  const folderId = req.query.folderId || '19YUdzbMBqEoBdR2xTxLxvReivPYZ0Nrr';
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return res.json({ error: 'GOOGLE_API_KEY nicht gesetzt' });
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,mimeType,size)&pageSize=100&key=${key}`;
+    const r = await axios.get(url, { timeout: 10000 });
+    res.json(r.data);
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
 // ── Debug: Rohe Autocomplete-Antwort von Nominatim ──────────────────────
 app.get('/debug/autocomplete', async (req, res) => {
   const q = req.query.q || 'Marktstraße';
