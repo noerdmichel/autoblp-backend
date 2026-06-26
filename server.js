@@ -196,11 +196,17 @@ async function fetchAlkisKoordinaten(strasse, hausnummer) {
 // ── Google Drive: PDFs beim Start laden ──────────────────────────────────
 let driveSystemContext = '';
 
-// Drive-Datei als base64 laden
+// Drive-Datei als base64 laden — öffentliche Download-URL
 async function loadDriveFile(fileId) {
-  const key = process.env.GOOGLE_API_KEY;
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${key}`;
-  const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+  // Öffentliche Drive-Dateien über export-Link downloadbar (kein OAuth nötig)
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const r = await axios.get(url, { 
+    responseType: 'arraybuffer', 
+    timeout: 45000,
+    maxRedirects: 5,
+    headers: { 'User-Agent': 'AutoBLP/1.0' }
+  });
+  if (r.data.byteLength < 1000) throw new Error('Datei zu klein — möglicherweise nicht öffentlich');
   return Buffer.from(r.data).toString('base64');
 }
 
@@ -431,6 +437,15 @@ app.get('/debug/bplan', async (req, res) => {
 });
 
 // ── Debug: Geocoding testen ───────────────────────────────────────────────
+// ── Debug: Drive-Download testen ─────────────────────────────────────────
+app.get('/debug/drive-download', async (req, res) => {
+  const fileId = req.query.id || '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK';
+  try {
+    const b64 = await loadDriveFile(fileId);
+    res.json({ ok: true, sizeKB: Math.round(b64.length * 0.75 / 1024), isPDF: b64.startsWith('JVBE') });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
 // ── Debug: Google Drive Ordner-Inhalt ────────────────────────────────────
 app.get('/api/drive-files', async (req, res) => {
   const folderId = req.query.folderId || '19YUdzbMBqEoBdR2xTxLxvReivPYZ0Nrr';
