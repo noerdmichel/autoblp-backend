@@ -196,33 +196,75 @@ async function fetchAlkisKoordinaten(strasse, hausnummer) {
 // ── Google Drive: PDFs beim Start laden ──────────────────────────────────
 let driveSystemContext = '';
 
+// Drive-Datei als base64 laden
+async function loadDriveFile(fileId) {
+  const key = process.env.GOOGLE_API_KEY;
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${key}`;
+  const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+  return Buffer.from(r.data).toString('base64');
+}
+
+// Drive-Index: planName → fileId für schnellen Lookup
+let driveBplanIndex = {}; // z.B. { 'StPauli37': '1abc...', ... }
+
+async function buildDriveIndex() {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return;
+  try {
+    // BPläne-Ordner indexieren (ID: 15J2KkY3ajqBl7Pg-usqWRb64HO53IQiA)
+    const BPLANE_FOLDER = '15J2KkY3ajqBl7Pg-usqWRb64HO53IQiA';
+    const url = `https://www.googleapis.com/drive/v3/files?q='${BPLANE_FOLDER}'+in+parents&fields=files(id,name)&pageSize=200&key=${key}`;
+    const r = await axios.get(url, { timeout: 15000 });
+    for (const f of (r.data.files || [])) {
+      // Dateiname z.B. "StPauli37.pdf" oder "StPauli37(1).pdf" → Key "StPauli37"
+      const key2 = f.name.replace(/\([^)]*\)/g, '').replace('.pdf', '').trim();
+      if (!driveBplanIndex[key2]) driveBplanIndex[key2] = f.id;
+    }
+    console.log('[Drive] B-Plan Index:', Object.keys(driveBplanIndex).length, 'Einträge');
+  } catch(e) { console.warn('[Drive] Index-Fehler:', e.message); }
+}
+
 async function loadDriveContext() {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) { console.log('[Drive] Kein API Key'); return; }
+
+  // Wichtigste Rechtstexte + Hamburg Grundlagen (kleine Dateien priorisiert)
   const fileIds = [
-    { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Regelung Kostenbeteiligung' },
-    { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Handreichung Verschattungsstudien' },
+    // Bundesrecht (Kerngesetze)
+    { id: '1gEa_qNIFkp6BtYBFF__qoI4zcGwxbOr6', name: 'BauNVO' },
+    // Hamburg Grundlagen
+    { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Regelung Kostenbeteiligung Hamburg' },
+    { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Handreichung Verschattungsstudien Hamburg' },
     { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan 2. Fortschreibung' },
-    { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburg' },
+    { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburg Planungsverfahren' },
+    { id: '1vQLaJNsM-7Dc4pgT4WPBqMnuspWUrBat', name: 'Hamburg macht Pläne - Planungsverfahren' },
+    // Hamburg Recht
+    { id: '1jXREkO_CxaaoJ1feiY7IIa7dxjetaC9R', name: 'Hamburgische Bauordnung (HBauO)' },
+    { id: '1VnUmHYfGn4nYVOcVylOBRH k0zptEluaF', name: 'BauleitplG Hamburg § 3' },
   ];
+
   try {
     const content = [];
     for (const f of fileIds) {
-      const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${key}`;
-      console.log('[Drive] Lade:', f.name);
-      const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
-      const b64 = Buffer.from(r.data).toString('base64');
-      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: f.name });
+      try {
+        console.log('[Drive] Lade:', f.name);
+        const b64 = await loadDriveFile(f.id);
+        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: f.name });
+      } catch(e) { console.warn('[Drive] Fehler bei', f.name, ':', e.message); }
     }
-    content.push({ type: 'text', text: 'Fasse die wichtigsten Regelungen, Kennzahlen und Anforderungen aus diesen Hamburger Planungsdokumenten zusammen. Fokus auf konkrete Zahlen, Grenzwerte, rechtliche Anforderungen, Verfahrensschritte. Max 1500 Wörter, strukturierte Stichpunkte.' });
+    if (content.length === 0) return;
+    content.push({ type: 'text', text: 'Extrahiere die wichtigsten Regelungen, Kennzahlen, Grenzwerte und Verfahrensanforderungen aus diesen Dokumenten als kompakten Referenztext für einen KI-Assistenten zur Hamburger Bauleitplanung. Max 2000 Wörter, strukturierte Stichpunkte nach Thema.' });
     const resp = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      model: 'claude-sonnet-4-6', max_tokens: 2500,
       messages: [{ role: 'user', content }]
-    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 180000 });
     driveSystemContext = resp.data.content[0].text;
     console.log('[Drive] Kontext geladen:', driveSystemContext.length, 'Zeichen');
   } catch(e) { console.warn('[Drive] Fehler:', e.message); }
 }
+
+// Beim Server-Start
+buildDriveIndex();
 loadDriveContext();
 
 // ── B-Plan: WFS mit UTM32-BBOX ────────────────────────────────────────────
@@ -687,7 +729,17 @@ app.get('/api/bplan-kennzahlen', async (req, res) => {
   const { planName } = req.query;
   if (!planName) return res.status(400).json({ error: 'planName fehlt' });
   try {
-    const pdfBase64 = await downloadPdfAsBase64(planName);
+    // Versuche zuerst Drive-PDF (exakter Match), dann Hamburg-Fallback
+  let pdfBase64 = null;
+  const driveFileId = driveBplanIndex[planName];
+  if (driveFileId) {
+    try {
+      console.log('[BPlanAnalyse] Lade PDF aus Drive:', planName);
+      pdfBase64 = await loadDriveFile(driveFileId);
+      console.log('[BPlanAnalyse] Drive PDF geladen:', Math.round(pdfBase64.length * 0.75 / 1024), 'KB');
+    } catch(e) { console.warn('[BPlanAnalyse] Drive Fehler, fallback:', e.message); }
+  }
+  if (!pdfBase64) pdfBase64 = await downloadPdfAsBase64(planName);
     const apiKey = process.env.ANTHROPIC_API_KEY;
     
     const messages = [{
