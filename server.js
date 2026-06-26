@@ -229,18 +229,32 @@ async function loadDriveContext() {
   if (!key) { console.log('[Drive] Kein API Key'); return; }
 
   // Wichtigste Rechtstexte + Hamburg Grundlagen (kleine Dateien priorisiert)
+  // Alle relevanten Dokumente — in Batches verarbeitet um Timeouts zu vermeiden
+  // Batch 1: Kerngesetze + Hamburg Grundlagen (höchste Relevanz)
   const fileIds = [
-    // Bundesrecht (Kerngesetze)
-    { id: '1gEa_qNIFkp6BtYBFF__qoI4zcGwxbOr6', name: 'BauNVO' },
-    // Hamburg Grundlagen
+    // Hamburger Landesrecht
+    { id: '1jXREkO_CxaaoJ1feiY7IIa7dxjetaC9R', name: 'Hamburgische Bauordnung HBauO' },
+    { id: '1tetvTLOnTmjr5yENmmKCyn_mQPf1PEhV', name: 'BauleitplG Hamburg' },
+    { id: '1o5b-Ieowq7qisHpdHLjBsZ0B4XqXKKWI', name: 'Klimaschutzgesetz Hamburg 2020' },
+    { id: '1SFFRjkon6hVIurL6M8sIuTZD4haZkXUY', name: 'Baumschutzverordnung Hamburg 2023' },
+    { id: '1FWhDCMT4HtoaDLhM1AZNnu0X8mNtP-0o', name: 'Denkmalschutzgesetz Hamburg' },
+    { id: '11jvU2mcldea_XWBiORisAqngsRVXwYzK', name: 'Naturschutzrechtliche Befreiung Hamburg' },
+    // Bundesrecht
+    { id: '1M1vzRByzdmNNitLvA55c8LE8h3ZgmVq0', name: 'BauNVO' },
+    { id: '1qVtwq8PmOlZmHoQJC0eBuAHxWhMri9Lp', name: 'BauGB' },
+    { id: '1FfcFu-RxJiE-piikpAQnH1XSUQZa2ECN', name: 'PlanZV' },
+    { id: '1LLQ78TtE1PX5If_Stqlqx7EWaCHMT-Vd', name: 'BNatSchG' },
+    // Hamburg Grundlagen (Planungspraxis)
+    { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan 2. Fortschreibung' },
     { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Regelung Kostenbeteiligung Hamburg' },
     { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Handreichung Verschattungsstudien Hamburg' },
-    { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan 2. Fortschreibung' },
-    { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburg Planungsverfahren' },
-    { id: '1vQLaJNsM-7Dc4pgT4WPBqMnuspWUrBat', name: 'Hamburg macht Pläne - Planungsverfahren' },
-    // Hamburg Recht
-    { id: '1jXREkO_CxaaoJ1feiY7IIa7dxjetaC9R', name: 'Hamburgische Bauordnung (HBauO)' },
-    { id: '1VnUmHYfGn4nYVOcVylOBRH k0zptEluaF', name: 'BauleitplG Hamburg § 3' },
+    { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburger Planungsverfahren' },
+    { id: '1vQLaJNsM-7Dc4pgT4WPBqMnuspWUrBat', name: 'Hamburg macht Pläne Planungsverfahren' },
+    { id: '1Ck9IvCuIZTw7xJsZ5Y3qZekTTTw1rMI4', name: 'Hamburger Zentrenkonzept' },
+    { id: '1WXQ16FY5xt4xKwM1q9nipBVpuo07SmXB', name: 'Hamburger Fassadenguide' },
+    { id: '1gmQABU6FZeZDsTZsGi1FvW7n1YZJeUrA', name: 'Hinweise Naturschutz bei Bauvorhaben Hamburg' },
+    { id: '1ThWhAaB7hQ3qUPHz2-KBbJUAQTmFm0o3', name: 'Klimaschutz Eckpunktepapier Hamburg 2022' },
+    { id: '1TchNtHiD1Wx6gX_KAcN-TQXelu9LTu7M', name: 'Grünes Netz Hamburg Senatsdrucksache' },
   ];
 
   try {
