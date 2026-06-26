@@ -365,6 +365,61 @@ async function fetchErhaltungsgebiete(lon, lat) {
   return [];
 }
 
+// ── Schutzgüter: Hochwasser (ÜSG) + Denkmalschutz ─────────────────────────
+// Verifizierte WFS (geo+json, EPSG:25832 URN-BBOX):
+//   Hochwasser: HH_WFS_UESG          / de.hh.up:ueberschwemmungsgebiete
+//   Denkmal:    HH_WFS_Denkmalschutz / de.hh.up:ensembles, de.hh.up:gebaeude
+//   Lärm:       HH_WFS_Strassenverkehr (derzeit 404 — später aktivieren)
+async function _wfsFeats(url) {
+  try { const r = await axios.get(url, { timeout: 15000 }); return r.data?.features || []; }
+  catch (e) { console.warn(`[Schutzgüter] ${e.response?.status||''} ${e.message}`); return null; }
+}
+async function fetchSchutzgueter(lon, lat) {
+  const bx = bboxUtm(lon, lat, 60);
+  const u = tn => `${HH_WFS}/HH_WFS_UESG?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=${tn}&outputFormat=application/geo%2Bjson&COUNT=3&BBOX=${bx},urn:ogc:def:crs:EPSG::25832`;
+  const dk = tn => `${HH_WFS}/HH_WFS_Denkmalschutz?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=${tn}&outputFormat=application/geo%2Bjson&COUNT=3&BBOX=${bx},urn:ogc:def:crs:EPSG::25832`;
+  const [uesg, ens, geb] = await Promise.all([
+    _wfsFeats(u('de.hh.up:ueberschwemmungsgebiete')),
+    _wfsFeats(dk('de.hh.up:ensembles')),
+    _wfsFeats(dk('de.hh.up:gebaeude')),
+  ]);
+  const out = { hochwasser: [], denkmal: [], laerm: [], fehler: [] };
+  if (uesg === null) out.fehler.push('hochwasser');
+  else out.hochwasser = uesg.map(f => ({
+    name: f.properties?.name || 'Überschwemmungsgebiet',
+    status: f.properties?.status || null,
+    info: f.properties?.info || null,
+  }));
+  const seen = {};
+  const addD = (f, art) => {
+    const key = f.properties?.bezeichnung || f.properties?.fisid;
+    if (!key || seen[key]) return; seen[key] = 1;
+    out.denkmal.push({
+      art,
+      bezeichnung: f.properties?.bezeichnung || 'Denkmal',
+      bautyp: f.properties?.bautyp || null,
+      baujahr: f.properties?.baujahr || null,
+      status: f.properties?.kdstatus || null,
+    });
+  };
+  (ens || []).forEach(f => addD(f, 'Ensemble'));
+  (geb || []).forEach(f => addD(f, 'Einzeldenkmal'));
+  if (ens === null && geb === null) out.fehler.push('denkmal');
+  return out;
+}
+
+app.get('/api/schutzgueter', async (req, res) => {
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  if (isNaN(lat) || isNaN(lon)) return res.status(400).json({ error: 'Parameter lat/lon fehlen' });
+  try {
+    const data = await fetchSchutzgueter(lon, lat);
+    res.json({ meta: { quelle: 'Urban Data Platform Hamburg (LGV)' }, ...data });
+  } catch (e) {
+    console.error('[Schutzgüter] Fehler:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Haupt-Endpoint ────────────────────────────────────────────────────────
 app.get('/api/analyse', async (req, res) => {
   const adresse = req.query.adresse;
