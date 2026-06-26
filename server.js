@@ -2,6 +2,10 @@ const express = require("express");
 const cors    = require("cors");
 const axios   = require("axios");
 
+// ▼▼▼ NEU: kuratierter Hamburg-Fachkontext (lädt hamburg_kontext_kompakt.json) ▼▼▼
+const { buildKontextBlock } = require("./hamburgKontext");
+// ▲▲▲ NEU ▲▲▲
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
@@ -712,6 +716,10 @@ async function analysePlanMitClaude(planName, pdfBase64, frage) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
+  // ▼▼▼ NEU: thematisch passende Hamburg-Dokumente auswählen (5–6 Stück) ▼▼▼
+  const kontextBlock = buildKontextBlock(`${planName} ${frage || ''}`);
+  // ▲▲▲ NEU ▲▲▲
+
   const systemPrompt = `Du bist ein erfahrener Stadtplaner und Jurist für Baurecht in Hamburg. Du analysierst Bebauungspläne und Baustufenpläne der Freien und Hansestadt Hamburg und gibst konkrete, rechtlich fundierte Einschätzungen für Bauvorhaben.
 
 ## Rechtliche Grundlagen
@@ -782,6 +790,7 @@ Antworte strukturiert:
 7. **Nächste Schritte**
 
 Orientierungsanalyse — keine Rechtsberatung. Für verbindliche Auskünfte: zuständiges Bezirksamt Hamburg.`
+    + (kontextBlock ? '\n\n' + kontextBlock : '')
     + (driveSystemContext ? '\n\n## Aus den Hamburger Planungsgrundlagen\n' + driveSystemContext : '');
 
   const userMessage = frage
