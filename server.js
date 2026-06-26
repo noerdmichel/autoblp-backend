@@ -261,6 +261,19 @@ async function loadDriveContext() {
     { id: '1gmQABU6FZeZDsTZsGi1FvW7n1YZJeUrA', name: 'Hinweise Naturschutz bei Bauvorhaben Hamburg' },
     { id: '1ThWhAaB7hQ3qUPHz2-KBbJUAQTmFm0o3', name: 'Klimaschutz Eckpunktepapier Hamburg 2022' },
     { id: '1TchNtHiD1Wx6gX_KAcN-TQXelu9LTu7M', name: 'Grünes Netz Hamburg Senatsdrucksache' },
+    // Hamburg Grundlagen — fehlende Dokumente
+    { id: '1sCt25LNyo_hy9vFZjsfodSFcEqFaK_lA', name: 'Leitfaden Dachbegruenung Hamburg' },
+    { id: '1opPY2id3DTHnnH0NdoRHBW4lgyan5ajp', name: 'Hamburger Stadtplanung Broschuere' },
+    { id: '1vg259RHvxNZE5h6iVzwar8V817kMh4Hk', name: 'Handreichung Pflege und Wartung Hamburg' },
+    { id: '105mMVBSdz4PYR0Oy0xdlbCQ9IOG3hZZE', name: 'Hamburg macht Plaene Planungsverfahren 2' },
+    // Wohnungsbauprogramme (Hamburger Bezirke)
+    { id: '13TD3VTpdv7bMqKbioyv490hC5DDco7Sg', name: 'Wohnungsbauprogramm Hamburg Nord 2025' },
+    { id: '1X5nJCjwlxOqDEYSVLUJMRrfklKTDjokU', name: 'Wohnungsbauprogramm Altona 2024' },
+    { id: '1qHpyPVKY10A2BpciWpFBEPaCSCV_HHit', name: 'Wohnungsbauprogramm Hamburg Mitte 2022' },
+    { id: '1MUOts7iXOtcVDxPtgIEzzDyumW-GqiwC', name: 'Wohnungsbauprogramm Harburg' },
+    { id: '18AdLIxAq3sv0FqTsFOgk7uCUNC9Q9OxZ', name: 'Wohnungsbauprogramm Hamburg Mitte 2024' },
+    { id: '1qzbu7-rzrhAyYSiQTqejM6eqt2Mrmczp', name: 'Wohnungsbauprogramm Eimsbuettel 2022' },
+    { id: '1JFJQOiPMYmo0VZjG48ukoyDmalxH_ZXt', name: 'Wohnungsbauprogramm Eimsbuettel 2023' },
   ];
 
   try {
