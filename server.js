@@ -446,6 +446,44 @@ Weise immer darauf hin dass dies eine Orientierungsanalyse ist und keine Rechtsb
   return response.data.content[0].text;
 }
 
+// ── API Endpoint: Kennzahlen als JSON ────────────────────────────────────────
+app.get('/api/bplan-kennzahlen', async (req, res) => {
+  const { planName } = req.query;
+  if (!planName) return res.status(400).json({ error: 'planName fehlt' });
+  try {
+    const pdfBase64 = await downloadPdfAsBase64(planName);
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    
+    const messages = [{
+      role: 'user',
+      content: pdfBase64 ? [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+        { type: 'text', text: `Extrahiere aus dem Bebauungsplan "${planName}" folgende Werte und antworte NUR mit einem JSON-Objekt, ohne Erklärung, ohne Markdown:
+{"nutzungsart": "z.B. WA – Allgemeines Wohngebiet", "grz": "z.B. 0.4", "gfz": "z.B. 1.2", "geschosse": "z.B. IV"}
+Wenn ein Wert nicht eindeutig bestimmbar ist, nutze den häufigsten/typischen Wert für das Plangebiet. Gib immer Werte an, nie null.` }
+      ] : [
+        { type: 'text', text: `Für den Hamburger Bebauungsplan "${planName}": Gib typische Werte als JSON: {"nutzungsart": "...", "grz": "...", "gfz": "...", "geschosse": "..."}` }
+      ]
+    }];
+
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 200, messages,
+    }, {
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      timeout: 60000,
+    });
+
+    const rawText = response.data.content[0].text.trim();
+    const jsonMatch = rawText.match(/\{[^}]+\}/);
+    const kennzahlen = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    console.log(`[Kennzahlen] ${planName}:`, kennzahlen);
+    res.json(kennzahlen);
+  } catch(err) {
+    console.error('[Kennzahlen] Fehler:', err.message);
+    res.json({ nutzungsart: '', grz: '', gfz: '', geschosse: '' });
+  }
+});
+
 // ── API Endpoint: B-Plan PDF Analyse ──────────────────────────────────────
 app.get('/api/bplan-analyse', async (req, res) => {
   const { planName, frage } = req.query;
