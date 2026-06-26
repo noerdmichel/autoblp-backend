@@ -346,6 +346,27 @@ app.get('/api/drive-files', async (req, res) => {
   }
 });
 
+// ── Training: PDFs von URL laden und analysieren ────────────────────────
+app.post('/api/extract-training-url', async (req, res) => {
+  const { urls } = req.body; // Array von {name, url}
+  if (!urls?.length) return res.status(400).json({ error: 'Keine URLs' });
+  try {
+    const content = [];
+    for (const item of urls) {
+      console.log(`[Training] Lade: ${item.name}`);
+      const r = await axios.get(item.url, { responseType: 'arraybuffer', timeout: 30000 });
+      const b64 = Buffer.from(r.data).toString('base64');
+      content.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data: b64 }, title: item.name });
+    }
+    content.push({ type:'text', text:`Extrahiere aus diesen Hamburger Planungsdokumenten alle konkreten Regelungen, Kennzahlen und Anforderungen für die Analyse von Bebauungsplänen. Strukturiere als kompakten Referenztext. Fokus: Klimaanforderungen, Dachbegrünung, Verschattung, Fassadengestaltung, Kostenbeteiligung, Planungsverfahren Hamburg. Max 2000 Wörter, strukturierte Stichpunkte.` });
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 3000,
+      messages: [{ role: 'user', content }]
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+    res.json({ text: response.data.content[0].text });
+  } catch(e) { res.json({ error: e.message, detail: e.response?.data }); }
+});
+
 // ── Training: PDF-Inhalte für Systemprompt extrahieren ──────────────────
 app.post('/api/extract-training', async (req, res) => {
   const { pdfs } = req.body; // Array von {name, base64}
