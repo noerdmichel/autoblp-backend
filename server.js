@@ -267,12 +267,23 @@ async function loadDriveContext() {
       } catch(e) { console.warn('[Drive] Fehler bei', f.name, ':', e.message); }
     }
     if (content.length === 0) return;
-    content.push({ type: 'text', text: 'Extrahiere die wichtigsten Regelungen, Kennzahlen, Grenzwerte und Verfahrensanforderungen aus diesen Dokumenten als kompakten Referenztext für einen KI-Assistenten zur Hamburger Bauleitplanung. Max 2000 Wörter, strukturierte Stichpunkte nach Thema.' });
-    const resp = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-6', max_tokens: 2500,
-      messages: [{ role: 'user', content }]
-    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 180000 });
-    driveSystemContext = resp.data.content[0].text;
+
+    // Batches von max 5 PDFs um 413-Fehler zu vermeiden
+    const BATCH_SIZE = 5;
+    const contextParts = [];
+    for (let i = 0; i < content.length; i += BATCH_SIZE) {
+      const batch = content.slice(i, i + BATCH_SIZE);
+      batch.push({ type: 'text', text: 'Extrahiere die wichtigsten Regelungen, Kennzahlen, Grenzwerte und Anforderungen aus diesen Dokumenten als kompakten Referenztext. Max 800 Wörter, strukturierte Stichpunkte nach Thema.' });
+      try {
+        const resp = await axios.post('https://api.anthropic.com/v1/messages', {
+          model: 'claude-sonnet-4-6', max_tokens: 1500,
+          messages: [{ role: 'user', content: batch }]
+        }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+        contextParts.push(resp.data.content[0].text);
+        console.log(`[Drive] Batch ${Math.floor(i/BATCH_SIZE)+1} verarbeitet`);
+      } catch(e) { console.warn(`[Drive] Batch ${Math.floor(i/BATCH_SIZE)+1} Fehler:`, e.message); }
+    }
+    driveSystemContext = contextParts.join('\n\n---\n\n');
     console.log('[Drive] Kontext geladen:', driveSystemContext.length, 'Zeichen');
   } catch(e) { console.warn('[Drive] Fehler:', e.message); }
 }
