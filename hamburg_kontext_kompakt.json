@@ -1,0 +1,481 @@
+{
+  "version": 1,
+  "docCount": 43,
+  "docs": [
+    {
+      "file": "regelung-kostenbeteiligung-data(1).pdf",
+      "title": "Regelung zur Kostenbeteiligung in der Bauleitplanung (FHH)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "kostenbeteiligung",
+        "staedtebaulicher_vertrag",
+        "verfahren"
+      ],
+      "kontext": "Hamburger Arbeitshilfe: Planungsbegünstigte übernehmen per städtebaulichem Vertrag die durch die Planung ursächlich ausgelösten Kosten der FHH, sofern Wertzuwächse entstehen und keine Grundstückswertermittlung nötig ist. Gilt für B-Plan-Verfahren (§§8, 13, 13a BauGB), vorhabenbezogene B-Pläne (§12) sowie Entwicklungs-/Ergänzungssatzungen (§34 Abs.4). Übertragbar sind u.a. Planungs- und Verfahrenskosten (städtebauliche Wettbewerbe, HOAI-Honorare externer Büros, Fachgutachten, archäologische Untersuchungen, Öffentlichkeitsarbeit, Umlegungskosten) sowie unentgeltliche, lastenfreie Flächenabtretungen. Betriebs- und Grünpflegekosten sind ausgenommen; für den FNP werden keine Kosten erhoben. Relevant für jede Aufwands-/Kosteneinschätzung privater Planungsbüros zu einem Vorhaben."
+    },
+    {
+      "file": "handreichung-verschattungsstudien-im-rahmen-von-bebauungsplanverfahren-data.pdf",
+      "title": "Handreichung Verschattungsstudien im B-Plan-Verfahren (BSW, 2022)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "verschattung",
+        "besonnung",
+        "gutachten",
+        "abwaegung"
+      ],
+      "kontext": "Hamburger Standard für Besonnung/Verschattung in B-Plan-Verfahren. Es gibt keine eindeutige gesetzliche Vorgabe; herangezogen werden DIN-Normen und Rechtsprechung als Orientierung. Bewertet wird die astronomisch mögliche Besonnungsdauer (Ersatzgröße für Tageslichtversorgung). Die Handreichung definiert einheitliche HH-Standards für Verschattungsgutachten (Bezugspunkt an der Fassade, Berücksichtigung der Laibungstiefe, fassaden- vs. grundrissbezogene Darstellung) und Empfehlungsstufen zur Besonnungsdauer. Sie regelt, wann ein Gutachten erforderlich ist (Prüfablauf für Plangebiet und Umgebung) und wie die Ergebnisse in die Abwägung einfließen. Rechtlicher Anker: §1 Abs.5 und Abs.6 Nr.1 BauGB (gesunde Wohnverhältnisse). Relevant bei verdichtetem Wohnungsbau / hohen Baukörpern im Plangebiet."
+    },
+    {
+      "file": "d-leitfaden-dachbegruenung-data.pdf",
+      "title": "Leitfaden Dachbegrünung zur Planung (BUE)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "dachbegruenung",
+        "gruendachstrategie",
+        "retention",
+        "solargruendach",
+        "planung"
+      ],
+      "kontext": "Hamburger Planungsleitfaden zur Dachbegrünung im Rahmen der Gründachstrategie. Behandelt Aufbau extensiver/intensiver Gründächer, Regenwasserrückhalt (Retention/Verdunstung, Entlastung der Siele), Biodiversität, Kombination mit Photovoltaik (Solargründach), Aufenthaltsqualität und bautechnische Anforderungen. Liefert Planungsgrundlagen, die in B-Plan-Festsetzungen zur Dachbegrünung und Niederschlagsbewirtschaftung übersetzt werden können. Im Kontext zu sehen mit der gesetzlichen Solargründach-Pflicht nach §16 HmbKliSchG. Nützlich für Empfehlungen zu Dachform, Begrünungsgrad und Entwässerungskonzept."
+    },
+    {
+      "file": "d-broschuere-data.pdf",
+      "title": "Mehr Gründächer für Hamburg — Gründachstrategie (BUKEA)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "dachbegruenung",
+        "gruendachstrategie",
+        "klimaanpassung",
+        "foerderung"
+      ],
+      "kontext": "Überblicksbroschüre zur Hamburger Gründachstrategie: Ziele (12 ha Dachbegrünung), Nutzen für Stadtklima, Regenwasserrückhalt, Artenvielfalt und Energie, plus Förderkulisse. Hintergrund für Empfehlungen zur Dachbegrünung bei Neubauvorhaben; ergänzt den Planungsleitfaden und den Fassadenguide."
+    },
+    {
+      "file": "d-handreichung-pflege-und-wartung-data(1).pdf",
+      "title": "Handreichung Pflege und Wartung von Gründächern",
+      "kategorie": "leitfaden",
+      "tags": [
+        "dachbegruenung",
+        "pflege",
+        "wartung"
+      ],
+      "kontext": "Praxishinweise zur dauerhaften Funktionsfähigkeit von Gründächern (Pflege-/Wartungszyklen, Vegetationskontrolle, Entwässerung). Relevant, wenn Dachbegrünung als Festsetzung oder Vertragspflicht dauerhaft gesichert werden soll."
+    },
+    {
+      "file": "d-fassadenguide-data.pdf",
+      "title": "Handbuch Grüne Wände — Fassadenbegrünung (Fassadenguide)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "fassade",
+        "begruenung",
+        "klimaanpassung",
+        "foerderung"
+      ],
+      "kontext": "Hamburger Leitfaden zur Fassadenbegrünung als Ergänzung der Gründachstrategie. Varianten (bodengebunden/wandgebunden), Nutzen für Stadtklima und Biodiversität, bautechnische Anforderungen, Brandschutz, Pflege, Pflanzenlisten sowie Beratung und Förderung (Programm „Grüne Wände/Dächer\", rd. 3 Mio. €). Grundlage für Empfehlungen zu begrünten Fassaden bei verdichteter Bebauung."
+    },
+    {
+      "file": "hamburger-zentrenkonzept-data.pdf",
+      "title": "Hamburger Zentrenkonzept (BSW)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "zentren",
+        "einzelhandel",
+        "nahversorgung"
+      ],
+      "kontext": "Gesamtstädtisches Zentren- und Einzelhandelskonzept Hamburgs: Hierarchie der Zentren, Sicherung von Nahversorgung und kleinteiliger Erdgeschossnutzung, Stärkung öffentlicher Räume (u.a. Programm „Hamburger Plätze\"), Magistralenentwicklung. Steuerungsgrundlage für die Zulässigkeit von Einzelhandel in B-Plänen (zentren-/nicht-zentrenrelevante Sortimente). Relevant, wenn das Plangebiet einen Zentrumsbezug oder Einzelhandelsnutzung hat."
+    },
+    {
+      "file": "broschuere-buergerbeteiligung-data.pdf",
+      "title": "Hamburg gemeinsam gestalten — Bürgerbeteiligung in der Stadtentwicklung",
+      "kategorie": "leitfaden",
+      "tags": [
+        "buergerbeteiligung",
+        "oeffentlichkeitsbeteiligung"
+      ],
+      "kontext": "Hamburger Leitfaden zur formellen (gesetzlich vorgeschriebenen) und informellen Bürgerbeteiligung in Planungsprozessen: Beteiligungskonzepte, Methoden (Workshops, Planungswerkstätten, Großgruppen, Online-Beteiligung), Zielgruppenansprache und Konfliktbearbeitung. Hintergrund für die Gestaltung der Öffentlichkeitsbeteiligung über die §§3, 4 BauGB hinaus."
+    },
+    {
+      "file": "hamburg-macht-plaene-data.pdf",
+      "title": "Hamburg macht Pläne — Erläuterungen zur Bauleitplanung",
+      "kategorie": "verfahren",
+      "tags": [
+        "verfahren",
+        "bauleitplanung",
+        "grundlagen",
+        "planzeichen"
+      ],
+      "kontext": "Allgemeinverständliche Einführung in die Hamburger Bauleitplanung: Ablauf des B-Plan-Verfahrens, Planzeichen, Art und Maß der baulichen Nutzung (mit Berechnungsbeispielen GRZ/GFZ), Mitwirkung der politischen Gremien, Planarten/Planungsebenen. Nützliche Begriffs- und Verfahrensreferenz für die Einordnung eines konkreten B-Plans."
+    },
+    {
+      "file": "d-zweite-fortschreibung-hamburger-klimaplan-data.pdf",
+      "title": "Zweite Fortschreibung des Hamburger Klimaplans (Drs. 22/12774)",
+      "kategorie": "programm",
+      "tags": [
+        "klima",
+        "co2",
+        "klimaziele",
+        "klimaanpassung"
+      ],
+      "kontext": "Fortschreibung des Hamburger Klimaplans gem. §6 HmbKliSchG (Vorlage alle vier Jahre). Setzt neue Klimaziele Richtung Netto-CO2-Neutralität, gegliedert nach Sektoren mit Stellschrauben/Hebelmaßnahmen, inkl. CO2-Monitoring und Anpassungsmaßnahmen an Klimafolgen. Strategischer Rahmen für klimabezogene Festsetzungen (Energie, Begrünung, Hitze-/Starkregenvorsorge) in der Bauleitplanung."
+    },
+    {
+      "file": "d-senatsdrucksache-2024-01207-data.pdf",
+      "title": "Berichtsdrucksache ‚Vertrag für Hamburgs Stadtgrün‘ 2023",
+      "kategorie": "programm",
+      "tags": [
+        "gruenes_netz",
+        "stadtgruen",
+        "naturschutz"
+      ],
+      "kontext": "Jahresbericht des Senats zum „Vertrag für Hamburgs Stadtgrün\" (Umsetzung der Volksinitiative ‚Hamburgs Grün erhalten‘). Dokumentiert Schutz und Entwicklung von Naturquantität und -qualität, Grünerhalt und Ausgleichsstrategien zwischen Senat und Bezirken. Relevant für die Bewertung von Grün-/Freiraumbelangen und Kompensation im Plangebiet."
+    },
+    {
+      "file": "arbeitshinweise-baum-artenschutz-2017-data.pdf",
+      "title": "Arbeitshinweise Baum- und Artenschutz (2017)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "baumschutz",
+        "artenschutz",
+        "naturschutz"
+      ],
+      "kontext": "Fachliche Hamburger Arbeitshinweise zur Berücksichtigung von Baum- und Artenschutz bei Vorhaben: geschützte Bäume/Hecken, Eingriffe, Ausnahmen/Befreiungen, artenschutzrechtliche Prüfung (§44 BNatSchG, Sommerfällverbot). Ergänzt die Baumschutzverordnung und die Naturschutz-Hinweise; relevant für Bestandsbäume und faunistische Belange im Plangebiet."
+    },
+    {
+      "file": "d-hinweise-zum-naturschutz-bei-bauvorhaben-data.pdf",
+      "title": "Hinweise zum Naturschutz bei Bauvorhaben (Merkblatt)",
+      "kategorie": "leitfaden",
+      "tags": [
+        "naturschutz",
+        "artenschutz",
+        "baumschutz",
+        "verfahren"
+      ],
+      "kontext": "Merkblatt, welche Naturschutzbelange bei Bauvorhaben zu beachten sind und welche Zulassungsverfahren greifen: Baumschutz (BaumschutzVO — geschützt ab 25 cm Stammdurchmesser in 1,30 m Höhe; Baumgruppen, Gehölzaufwuchs ab 50 m²), gesetzlicher Biotopschutz (§30 BNatSchG / §14 HmbBNatSchAG), allgemeiner und besonderer Artenschutz (§§39, 44 BNatSchG), Gewässer-/Uferschutz (§61 BNatSchG / §15 HmbBNatSchAG). Zeigt, welche naturschutzrechtlichen Verfahren im Baugenehmigungsverfahren mitgeprüft werden."
+    },
+    {
+      "file": "d-naturschutzrechtlichebefreiung-data.pdf",
+      "title": "Naturschutzrechtliche Befreiung — Hinweise",
+      "kategorie": "leitfaden",
+      "tags": [
+        "naturschutz",
+        "befreiung",
+        "verfahren"
+      ],
+      "kontext": "Kurzhinweise zu Voraussetzungen und Ablauf einer naturschutzrechtlichen Befreiung/Ausnahme (z.B. von Schutzgebiets- oder Baumschutzregelungen). Relevant, wenn geschützte Bestandteile im Plangebiet betroffen sind."
+    },
+    {
+      "file": "d-eckpunktepapier2022-data.pdf",
+      "title": "Eckpunktepapier zur zweiten Fortschreibung des Klimaplans (2022)",
+      "kategorie": "programm",
+      "tags": [
+        "klima",
+        "klimaziele"
+      ],
+      "kontext": "Methodisches Eckpunktepapier (Stand 12/2022) als Vorstufe zur zweiten Klimaplan-Fortschreibung: Herangehensweise, Sektorlogik und Bilanzierung. Hintergrunddokument zum Klimaplan."
+    },
+    {
+      "file": "d-beiblatt-flaechennutzungsplan-erlaeuterungsbericht-2013-data.pdf",
+      "title": "FNP Hamburg — Erläuterungsbericht (2013)",
+      "kategorie": "verfahren",
+      "tags": [
+        "fnp",
+        "flaechennutzungsplan",
+        "naturschutz"
+      ],
+      "kontext": "Erläuterungsbericht zum Flächennutzungsplan Hamburg: Darstellungssystematik und Entwicklungsziele der vorbereitenden Bauleitplanung. Relevant für die Frage, ob ein B-Plan aus dem FNP entwickelt ist (§8 Abs.2 BauGB) bzw. Parallelverfahren/Berichtigung erforderlich sind."
+    },
+    {
+      "file": "Bedarfsbeschreibung XPlanung XBau.pdf",
+      "title": "Bedarfsbeschreibung XPlanung / XBau (IT-Planungsrat)",
+      "kategorie": "verfahren",
+      "tags": [
+        "xplanung",
+        "xbau",
+        "digitalisierung",
+        "verfahren"
+      ],
+      "kontext": "Bedarfsbeschreibung der bundesweiten Austauschstandards XPlanung (Bauleitpläne) und XBau (Baugenehmigung), Bedarfsträger Hamburg. Hintergrund zur digitalen, maschinenlesbaren Repräsentation von B-Plänen (Geltungsbereiche, Festsetzungen). Relevant für die technische Verarbeitung/Interpretation digitaler Planinhalte."
+    },
+    {
+      "file": "bezikliches-wobauprogramm-2024-dataMITTE.pdf",
+      "title": "Wohnungsbauprogramm Hamburg-Mitte 2024",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_mitte",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "bezirkliches-wohnungsbauprogramm-hamburg-mitte-2022-data.pdf",
+      "title": "Wohnungsbauprogramm Hamburg-Mitte 2022",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_mitte",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "d-bezirk-wobaupro-eimsb-2022-data.pdf",
+      "title": "Wohnungsbauprogramm Eimsbüttel 2022",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_eimsbuettel",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "d-bezirk-wobaupro-eimsb-2023-data.pdf",
+      "title": "Wohnungsbauprogramm Eimsbüttel 2023",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_eimsbuettel",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "wohnungsbauprogramm-2024-dataALTONA.pdf",
+      "title": "Wohnungsbauprogramm Altona 2024",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_altona",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "wohnungsbauprogramm-2025-dataNORD.pdf",
+      "title": "Wohnungsbauprogramm Hamburg-Nord 2025",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_nord",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "wohnungsbauprogramm-textteil-dataHARBURG.pdf",
+      "title": "Wohnungsbauprogramm Harburg (Textteil)",
+      "kategorie": "programm",
+      "tags": [
+        "wohnungsbau",
+        "bezirk_harburg",
+        "potenzialflaechen"
+      ],
+      "kontext": "Bezirkliches Wohnungsbauprogramm: systematische Erfassung der Wohnungsbaupotenziale (Potenzialflächen, Verdichtung, B-Plan-Bedarf) im Bezirk im Rahmen des „Vertrags für Hamburg – Wohnungsneubau\" bzw. „Bündnis für das Wohnen\" (hamburgweites Ziel rd. 10.000 Wohnungen/Jahr). Enthält Bezirksziele, Wohnlagen-/Quartiers- analysen und Flächensteckbriefe. Relevant, um ein Plangebiet in die wohnungspolitische Zielsetzung des Bezirks einzuordnen (Dichte, geförderter Wohnraum, Drittelmix)."
+    },
+    {
+      "file": "KlimaSchG_HA_2020.pdf",
+      "title": "Hamburgisches Klimaschutzgesetz (HmbKliSchG)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "klima",
+        "solargruendach",
+        "photovoltaik",
+        "hamburg"
+      ],
+      "kontext": "Hamburgisches Klimaschutzgesetz (2020, mehrfach geändert). Für Bauvorhaben besonders relevant: §16 Pflicht zur Errichtung und Nutzung von Solargründächern (Dachbegrünung + PV), §16a PV-Pflicht auf Stellplatzanlagen, §13 Vorrang baulichen sommerlichen Wärmeschutzes, §11 Beschränkung elektrischer Heizungen, §17 EE-Nutzungspflicht bei der Wärmeversorgung. Setzt Hamburger Klimaschutzziele und den Klimaplan (§6). Direkter Anker für energie- und begrünungsbezogene Empfehlungen."
+    },
+    {
+      "file": "baumschutzverordnung-2023-data.pdf",
+      "title": "Hamburger Baumschutzverordnung (2023)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "baumschutz",
+        "naturschutz",
+        "hamburg"
+      ],
+      "kontext": "Hamburger Baumschutzverordnung. Geschützt sind Bäume ab 80 cm Stammumfang (gemessen in 130 cm Höhe), Baumgruppen/-reihen ab drei Bäumen mit sich berührenden Kronen sowie mehrstämmige Bäume (mind. ein Stamm ≥50 cm) und Hecken ab 80 cm Höhe. Ausnahmen u.a. für Obstbäume (außer Walnuss/Esskastanie) und Baumschulware. Fällung/Eingriff erfordert Ausnahme/Genehmigung. Relevant für Bestandsbäume im Plangebiet."
+    },
+    {
+      "file": "entwurf-baumschutzverordnung-text-data.pdf",
+      "title": "Baumschutzverordnung — Entwurfstext",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "baumschutz",
+        "naturschutz",
+        "hamburg",
+        "entwurf"
+      ],
+      "kontext": "Entwurfsfassung der Hamburger Baumschutzverordnung (Textteil). Nur zum Vergleich/Abgleich mit der geltenden Fassung 2023 heranziehen."
+    },
+    {
+      "file": "landesbauordnung-hamburg.pdf",
+      "title": "Hamburgische Bauordnung (HBauO)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "hbauo",
+        "abstandsflaeche",
+        "bauordnung",
+        "hamburg"
+      ],
+      "kontext": "Hamburgische Bauordnung (HBauO) — bauordnungsrechtlicher Rahmen: Abstandsflächen, Gebäudehöhen, Brand-/Standsicherheit, Stellplätze, Begrünungs- und Gestaltungsanforderungen. Ergänzt die bauplanungsrechtlichen Festsetzungen des B-Plans auf Vollzugsebene."
+    },
+    {
+      "file": "BauleitplG_HA.pdf",
+      "title": "Hamburgisches Bauleitplanfeststellungsgesetz (BauleitplFG)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "bauleitplanung",
+        "verfahren",
+        "hamburg"
+      ],
+      "kontext": "Hamburgisches Gesetz über die Feststellung von Bauleitplänen: Hamburg stellt B-Pläne als Rechtsverordnung/Gesetz fest (Stadtstaat-Besonderheit, keine kommunale Satzung wie im Flächenland). Regelt Zuständigkeiten und Feststellungsverfahren."
+    },
+    {
+      "file": "DSchG_HA_2013.pdf",
+      "title": "Hamburgisches Denkmalschutzgesetz (DSchG)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "denkmalschutz",
+        "hamburg"
+      ],
+      "kontext": "Hamburgisches Denkmalschutzgesetz (2013, ipsa-lege-Prinzip: Schutz kraft Gesetzes ohne konstitutive Eintragung). Relevant bei Denkmälern, Ensembles oder Denkmalbereichen im Plangebiet; Erhaltungs- und Genehmigungspflichten sind in der Abwägung zu berücksichtigen."
+    },
+    {
+      "file": "WasG_HA_2005.pdf",
+      "title": "Hamburgisches Wassergesetz (HWaG)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "wasser",
+        "gewaesser",
+        "hamburg"
+      ],
+      "kontext": "Hamburgisches Wassergesetz — landesrechtliche Ausgestaltung zum WHG: Gewässer, Gewässerrandstreifen, Niederschlagswasserbeseitigung, wasserrechtliche Erlaubnisse. Relevant für Entwässerung/Regenwasser- bewirtschaftung und gewässernahe Lagen im Plangebiet."
+    },
+    {
+      "file": "UVPG_HA.pdf",
+      "title": "Hamburgisches UVP-Gesetz (HmbUVPG)",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "uvp",
+        "umweltpruefung",
+        "hamburg"
+      ],
+      "kontext": "Landesrechtliche Ergänzung zum UVPG für hamburgspezifische Vorhaben. Relevant nur bei UVP-/SUP-pflichtigen Plänen oder Vorhaben."
+    },
+    {
+      "file": "BBodSchGAErgG_HA.pdf",
+      "title": "Hamburger Ausführungs-/Ergänzungsgesetz Bodenschutz",
+      "kategorie": "gesetz_hh",
+      "tags": [
+        "bodenschutz",
+        "altlasten",
+        "hamburg"
+      ],
+      "kontext": "Hamburger Ergänzungsregelung zum Bundes-Bodenschutzgesetz (Zuständigkeiten, Altlasten/Bodenschutz). Relevant bei Altlastenverdacht oder bodenschutzrechtlichen Belangen im Plangebiet."
+    },
+    {
+      "file": "BauGB.pdf",
+      "title": "Baugesetzbuch (BauGB)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "baugb",
+        "bauleitplanung",
+        "verfahren"
+      ],
+      "kontext": "Bundesrechtlicher Kern der Bauleitplanung: Aufstellung/Verfahren (§§1-13a), Abwägung (§1 Abs.7), Umweltbelange (§1 Abs.6 Nr.7), zulässiges Bauen (§§30/34/35), städtebauliche Verträge (§11), Eingriffsregelung/Ausgleich (§1a). Maßgebliche Rechtsgrundlage jeder B-Plan-Bewertung."
+    },
+    {
+      "file": "BauNVO.pdf",
+      "title": "Baunutzungsverordnung (BauNVO)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "baunvo",
+        "nutzungsart",
+        "mass"
+      ],
+      "kontext": "Definiert Art (Baugebietstypen §§2-11: WR, WA, MI, GE etc.) und Maß der baulichen Nutzung (GRZ §19, GFZ §20, Bauweise/Baugrenzen §§22-23). Grundlage für die Auslegung der Nutzungs- und Maßfestsetzungen eines B-Plans."
+    },
+    {
+      "file": "PlanZV.pdf",
+      "title": "Planzeichenverordnung (PlanZV)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "planzeichen",
+        "baugb"
+      ],
+      "kontext": "Bundeseinheitliche Planzeichen für Bauleitpläne. Hilfe bei der Deutung der zeichnerischen Festsetzungen eines B-Plans."
+    },
+    {
+      "file": "BNatSchG.pdf",
+      "title": "Bundesnaturschutzgesetz (BNatSchG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "naturschutz",
+        "artenschutz",
+        "eingriffsregelung"
+      ],
+      "kontext": "Eingriffsregelung (§§13-15), gesetzlicher Biotopschutz (§30), allgemeiner/besonderer Artenschutz (§§39, 44, inkl. Fäll-/Störungsverbote). In Hamburg ergänzt durch das HmbBNatSchAG. Relevant für Naturschutz-/Artenschutzbelange und Kompensation."
+    },
+    {
+      "file": "WHG.pdf",
+      "title": "Wasserhaushaltsgesetz (WHG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "wasser",
+        "gewaesser"
+      ],
+      "kontext": "Bundesrahmen für Gewässerbenutzung, Gewässerrandstreifen (§38), Niederschlagswasser und Hochwasserschutz; in Hamburg ausgestaltet durch das HWaG."
+    },
+    {
+      "file": "BImSchG.pdf",
+      "title": "Bundes-Immissionsschutzgesetz (BImSchG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "immissionsschutz",
+        "laerm",
+        "klima"
+      ],
+      "kontext": "Schutz vor schädlichen Umwelteinwirkungen (Lärm, Luftschadstoffe). Relevant bei Gemengelagen (Wohnen/Gewerbe/Verkehr) und Lärmkonflikten in der Abwägung (TA Lärm, DIN 18005)."
+    },
+    {
+      "file": "UVPG.pdf",
+      "title": "Gesetz über die Umweltverträglichkeitsprüfung (UVPG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "uvp",
+        "umweltpruefung"
+      ],
+      "kontext": "Regelt UVP/SUP-Pflicht und -Verfahren. Relevant für die Umweltprüfung nach §2 BauGB bei entsprechenden Plänen/Vorhaben."
+    },
+    {
+      "file": "ROG.pdf",
+      "title": "Raumordnungsgesetz (ROG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "raumordnung"
+      ],
+      "kontext": "Übergeordnete Raumordnung; Bauleitplanung ist den Zielen der Raumordnung anzupassen (§1 Abs.4 BauGB). Für die lokale B-Plan-Analyse meist nachrangig."
+    },
+    {
+      "file": "KrWG.pdf",
+      "title": "Kreislaufwirtschaftsgesetz (KrWG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "abfall",
+        "kreislaufwirtschaft"
+      ],
+      "kontext": "Abfall-/Kreislaufwirtschaftsrecht; für B-Plan-Analysen nur in Sonderfällen relevant (z.B. Bodenmassen/Verwertung, Entsorgungsinfrastruktur)."
+    },
+    {
+      "file": "BBodSchG.pdf",
+      "title": "Bundes-Bodenschutzgesetz (BBodSchG)",
+      "kategorie": "gesetz_bund",
+      "tags": [
+        "bodenschutz",
+        "altlasten"
+      ],
+      "kontext": "Bundesrahmen für Bodenschutz und Altlasten; in Hamburg ergänzt durch das landesrechtliche Ausführungsgesetz. Relevant bei Altlastenverdachtsflächen."
+    }
+  ]
+}
