@@ -342,8 +342,26 @@ app.get('/api/drive-files', async (req, res) => {
     const r = await axios.get(url, { timeout: 10000 });
     res.json(r.data);
   } catch(e) {
-    res.json({ error: e.message });
+    res.json({ error: e.message, status: e.response?.status, detail: e.response?.data });
   }
+});
+
+// ── Training: PDF-Inhalte für Systemprompt extrahieren ──────────────────
+app.post('/api/extract-training', async (req, res) => {
+  const { pdfs } = req.body; // Array von {name, base64}
+  if (!pdfs?.length) return res.status(400).json({ error: 'Keine PDFs' });
+  try {
+    const content = [];
+    for (const pdf of pdfs) {
+      content.push({ type:'document', source:{ type:'base64', media_type:'application/pdf', data:pdf.base64 }, title: pdf.name });
+    }
+    content.push({ type:'text', text:`Extrahiere aus diesen Hamburger Planungsdokumenten alle konkreten Regelungen, Kennzahlen und Anforderungen die für die Analyse von Bebauungsplänen relevant sind. Strukturiere als kompakten Referenztext für einen KI-Systemprompt. Fokus: Klimaanforderungen, Dachbegrünung, Verschattung, Fassadengestaltung, Kostenbeteiligung, Planungsverfahren Hamburg. Max 2000 Wörter, kein Fließtext sondern strukturierte Stichpunkte.` });
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 3000,
+      messages: [{ role: 'user', content }]
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+    res.json({ text: response.data.content[0].text });
+  } catch(e) { res.json({ error: e.message }); }
 });
 
 // ── Debug: Rohe Autocomplete-Antwort von Nominatim ──────────────────────
