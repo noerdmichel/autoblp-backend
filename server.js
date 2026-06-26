@@ -193,6 +193,38 @@ async function fetchAlkisKoordinaten(strasse, hausnummer) {
   return null;
 }
 
+// ── Google Drive: PDFs beim Start laden ──────────────────────────────────
+let driveSystemContext = '';
+
+async function loadDriveContext() {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) { console.log('[Drive] Kein API Key'); return; }
+  const fileIds = [
+    { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Regelung Kostenbeteiligung' },
+    { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Handreichung Verschattungsstudien' },
+    { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan 2. Fortschreibung' },
+    { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburg' },
+  ];
+  try {
+    const content = [];
+    for (const f of fileIds) {
+      const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${key}`;
+      console.log('[Drive] Lade:', f.name);
+      const r = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+      const b64 = Buffer.from(r.data).toString('base64');
+      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: f.name });
+    }
+    content.push({ type: 'text', text: 'Fasse die wichtigsten Regelungen, Kennzahlen und Anforderungen aus diesen Hamburger Planungsdokumenten zusammen. Fokus auf konkrete Zahlen, Grenzwerte, rechtliche Anforderungen, Verfahrensschritte. Max 1500 Wörter, strukturierte Stichpunkte.' });
+    const resp = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      messages: [{ role: 'user', content }]
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+    driveSystemContext = resp.data.content[0].text;
+    console.log('[Drive] Kontext geladen:', driveSystemContext.length, 'Zeichen');
+  } catch(e) { console.warn('[Drive] Fehler:', e.message); }
+}
+loadDriveContext();
+
 // ── B-Plan: WFS mit UTM32-BBOX ────────────────────────────────────────────
 async function fetchBPlan(lon, lat) {
   const bbox = bboxUtm(lon, lat, 30);
@@ -547,27 +579,77 @@ async function analysePlanMitClaude(planName, pdfBase64, frage) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
-  const systemPrompt = `Du bist ein erfahrener Stadtplaner und Jurist für Baurecht in Hamburg. 
-Du analysierst Baustufenpläne und Bebauungspläne der Freien und Hansestadt Hamburg.
-Deine Aufgabe ist es, aus dem vorliegenden Plan alle relevanten Festsetzungen zu extrahieren 
-und konkrete, rechtlich fundierte Einschätzungen für Bauvorhaben zu geben.
+  const systemPrompt = `Du bist ein erfahrener Stadtplaner und Jurist für Baurecht in Hamburg. Du analysierst Bebauungspläne und Baustufenpläne der Freien und Hansestadt Hamburg und gibst konkrete, rechtlich fundierte Einschätzungen für Bauvorhaben.
 
-Antworte immer strukturiert mit:
-1. Gebietsausweisung und Nutzungsart
-2. Bauliche Kennzahlen (GRZ, GFZ, Geschosszahl, Bauweise)
-3. Besondere Festsetzungen und Einschränkungen
-4. Gestaltungsrichtlinien (soweit aus dem Plan ableitbar)
-5. Rechtliche Einschätzung zur konkreten Frage
-6. Empfehlungen und nächste Schritte
+## Rechtliche Grundlagen
 
-Berücksichtige dabei:
-- Die Überleitung von Baustufenplänen nach § 233 BauGB
-- BauNVO (aktuelle Fassung) für die Nutzungsart
-- BauGB für Erhaltungsverordnungen (§ 172)
-- Hamburgische Bauordnung (HBauO)
-- Typische Hamburgische Planungspraxis
+**Bundesrecht:**
+- BauGB § 1-13: Bauleitplanung, Aufstellungsverfahren, Bürgerbeteiligung (§ 3 BauGB)
+- BauGB § 172: Erhaltungssatzungen — Genehmigungspflicht für Rückbau, Änderung, Nutzungsänderung
+- BauGB § 233: Überleitung von Baustufenplänen (BSP) als qualifizierte Bebauungspläne
+- BauGB § 34: Zulässigkeit im unbeplanten Innenbereich (Einfügegebot)
+- BauNVO: Gebietsarten (WA, WR, MI, MK, GE, GI, SO), GRZ/GFZ-Obergrenzen (§ 17 BauNVO)
+- BauNVO § 19: GRZ-Überschreitung bis 50% durch Nebenanlagen zulässig
+- BauNVO § 20: GFZ als Höchstmaß
 
-Weise immer darauf hin dass dies eine Orientierungsanalyse ist und keine Rechtsberatung ersetzt.`;
+**Hamburgisches Recht:**
+- HBauO § 6: Abstandsflächen (0,4H, mind. 2,5m in Hamburg)
+- HBauO § 48: Stellplatzpflicht
+- § 172 BauGB i.V.m. HmbWoSchG: Soziale Erhaltungsverordnungen (Milieuschutz)
+
+## Hamburger Planungspraxis
+
+**Bebauungsplanverfahren:**
+- Aufstellung durch Bezirksamt, Feststellung durch Senat
+- Bürgerbeteiligung: § 3 Abs. 1 (frühzeitig) + § 3 Abs. 2 BauGB (Auslegung)
+- Städtebauliche Verträge § 11 BauGB: Kostenbeteiligung an Erschließung, Grünflächen, sozialer Infrastruktur
+- Erschließungskosten: bis 90% auf Eigentümer umlegbar (§ 127 ff. BauGB)
+
+**Hamburger Klimaplan (2. Fortschreibung 2022):**
+- Klimaschutzziel: Hamburg klimaneutral bis 2045
+- Dachbegrünung, Fassadenbegrünung, Versickerungsflächen als B-Plan-Festsetzung (§ 9 Abs. 1 Nr. 25 BauGB)
+- Hitzeminderung durch Begrünung und Kaltluftschneisen
+- PV-Pflicht auf Neubauten ab 2023 in Hamburg
+- Starkregenrisiko: Retentionsflächen, Mulden-Rigolen-Systeme
+
+**Dachbegrünung:**
+- Extensiv: ab 15° Neigung, Substrat 6-15cm, kein Pflegeaufwand, 50% Regenwasser-Rückhalt
+- Intensiv: Flachdächer, Substrat >15cm, begehbar
+- Förderung durch IFB Hamburg
+
+**Verschattung (Handreichung Hamburg):**
+- Mindestbesonnung Wohnnutzung: 1,5h/Tag zur Tagundnachtgleiche (21. März)
+- Simulationspflicht ab bestimmten Gebäudehöhen
+- DIN 5034 für Solar- und Tageslichtanalyse
+
+**Fassadengestaltung:**
+- Gestaltungssatzungen in Erhaltungsbereichen: Klinker, Putz, Naturstein
+- Werbeanlagen eingeschränkt in WA-Gebieten (§ 13 BauNVO)
+
+**Hamburger Zentrenkonzept:**
+- Hierarchie: Hauptzentren → Stadtteilzentren → Nahversorgungszentren
+- Großflächiger Einzelhandel (>800m² VK) nur in ausgewiesenen Zentren
+- Einzelhandelsausschluss in GE für zentrenrelevante Sortimente
+
+**Soziale Erhaltungsverordnungen Hamburg:**
+- Gebiete: St. Pauli, Altona-Altstadt, Ottensen, Eimsbüttel, Barmbek, Eilbek, Hamm u.a.
+- Genehmigungspflicht: Rückbau, Nutzungsänderung, aufwertende Maßnahmen
+- Versagungsgrund: Verdrängung der angestammten Wohnbevölkerung
+- Luxusmodernisierungen grundsätzlich versagbar
+
+## Ausgabeformat
+
+Antworte strukturiert:
+1. **Gebietsausweisung und Nutzungsart**
+2. **Bauliche Kennzahlen** (GRZ, GFZ, Geschosse, Bauweise — mit konkreten Werten aus dem Plan)
+3. **Besondere Festsetzungen** (Erhaltungsbereich, Lärmschutz, Stellplätze, Dachbegrünung etc.)
+4. **Gestaltungsrichtlinien**
+5. **Relevante Planungskonzepte** (Klimaplan, Zentrenkonzept, Milieuschutz)
+6. **Rechtliche Einschätzung**
+7. **Nächste Schritte**
+
+Orientierungsanalyse — keine Rechtsberatung. Für verbindliche Auskünfte: zuständiges Bezirksamt Hamburg.`
+    + (driveSystemContext ? '\n\n## Aus den Hamburger Planungsgrundlagen\n' + driveSystemContext : '');
 
   const userMessage = frage
     ? `Analysiere den Bebauungsplan "${planName}" und beantworte folgende Frage: ${frage}`
