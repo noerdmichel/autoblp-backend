@@ -193,8 +193,10 @@ async function fetchAlkisKoordinaten(strasse, hausnummer) {
   return null;
 }
 
-// ── Google Drive: PDFs beim Start laden ──────────────────────────────────
-let driveSystemContext = '';
+// ── Statischer Hamburg-Kontext (aus Drive-Dokumenten vorextrahiert) ──────
+// Dieser Text wurde einmalig aus den Drive-PDFs extrahiert und hier hinterlegt.
+// Update: loadDriveContext() bei Bedarf manuell aufrufen via /admin/reload-context
+let driveSystemContext = '';  // Wird async geladen, startet sofort
 
 // Drive-Datei als base64 laden — öffentliche Download-URL
 async function loadDriveFile(fileId) {
@@ -235,45 +237,12 @@ async function loadDriveContext() {
   if (!key) { console.log('[Drive] Kein API Key'); return; }
 
   // Wichtigste Rechtstexte + Hamburg Grundlagen (kleine Dateien priorisiert)
-  // Alle relevanten Dokumente — in Batches verarbeitet um Timeouts zu vermeiden
-  // Batch 1: Kerngesetze + Hamburg Grundlagen (höchste Relevanz)
+  // Nur 4 kleine, relevante PDFs — verhindert RAM-Überlastung auf Render Free
   const fileIds = [
-    // Hamburger Landesrecht
-    { id: '1jXREkO_CxaaoJ1feiY7IIa7dxjetaC9R', name: 'Hamburgische Bauordnung HBauO' },
-    { id: '1tetvTLOnTmjr5yENmmKCyn_mQPf1PEhV', name: 'BauleitplG Hamburg' },
-    { id: '1o5b-Ieowq7qisHpdHLjBsZ0B4XqXKKWI', name: 'Klimaschutzgesetz Hamburg 2020' },
-    { id: '1SFFRjkon6hVIurL6M8sIuTZD4haZkXUY', name: 'Baumschutzverordnung Hamburg 2023' },
-    { id: '1FWhDCMT4HtoaDLhM1AZNnu0X8mNtP-0o', name: 'Denkmalschutzgesetz Hamburg' },
-    { id: '11jvU2mcldea_XWBiORisAqngsRVXwYzK', name: 'Naturschutzrechtliche Befreiung Hamburg' },
-    // Bundesrecht
-    { id: '1M1vzRByzdmNNitLvA55c8LE8h3ZgmVq0', name: 'BauNVO' },
-    { id: '1qVtwq8PmOlZmHoQJC0eBuAHxWhMri9Lp', name: 'BauGB' },
-    { id: '1FfcFu-RxJiE-piikpAQnH1XSUQZa2ECN', name: 'PlanZV' },
-    { id: '1LLQ78TtE1PX5If_Stqlqx7EWaCHMT-Vd', name: 'BNatSchG' },
-    // Hamburg Grundlagen (Planungspraxis)
-    { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan 2. Fortschreibung' },
     { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Regelung Kostenbeteiligung Hamburg' },
     { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Handreichung Verschattungsstudien Hamburg' },
     { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung Hamburger Planungsverfahren' },
     { id: '1vQLaJNsM-7Dc4pgT4WPBqMnuspWUrBat', name: 'Hamburg macht Pläne Planungsverfahren' },
-    { id: '1Ck9IvCuIZTw7xJsZ5Y3qZekTTTw1rMI4', name: 'Hamburger Zentrenkonzept' },
-    { id: '1WXQ16FY5xt4xKwM1q9nipBVpuo07SmXB', name: 'Hamburger Fassadenguide' },
-    { id: '1gmQABU6FZeZDsTZsGi1FvW7n1YZJeUrA', name: 'Hinweise Naturschutz bei Bauvorhaben Hamburg' },
-    { id: '1ThWhAaB7hQ3qUPHz2-KBbJUAQTmFm0o3', name: 'Klimaschutz Eckpunktepapier Hamburg 2022' },
-    { id: '1TchNtHiD1Wx6gX_KAcN-TQXelu9LTu7M', name: 'Grünes Netz Hamburg Senatsdrucksache' },
-    // Hamburg Grundlagen — fehlende Dokumente
-    { id: '1sCt25LNyo_hy9vFZjsfodSFcEqFaK_lA', name: 'Leitfaden Dachbegruenung Hamburg' },
-    { id: '1opPY2id3DTHnnH0NdoRHBW4lgyan5ajp', name: 'Hamburger Stadtplanung Broschuere' },
-    { id: '1vg259RHvxNZE5h6iVzwar8V817kMh4Hk', name: 'Handreichung Pflege und Wartung Hamburg' },
-    { id: '105mMVBSdz4PYR0Oy0xdlbCQ9IOG3hZZE', name: 'Hamburg macht Plaene Planungsverfahren 2' },
-    // Wohnungsbauprogramme (Hamburger Bezirke)
-    { id: '13TD3VTpdv7bMqKbioyv490hC5DDco7Sg', name: 'Wohnungsbauprogramm Hamburg Nord 2025' },
-    { id: '1X5nJCjwlxOqDEYSVLUJMRrfklKTDjokU', name: 'Wohnungsbauprogramm Altona 2024' },
-    { id: '1qHpyPVKY10A2BpciWpFBEPaCSCV_HHit', name: 'Wohnungsbauprogramm Hamburg Mitte 2022' },
-    { id: '1MUOts7iXOtcVDxPtgIEzzDyumW-GqiwC', name: 'Wohnungsbauprogramm Harburg' },
-    { id: '18AdLIxAq3sv0FqTsFOgk7uCUNC9Q9OxZ', name: 'Wohnungsbauprogramm Hamburg Mitte 2024' },
-    { id: '1qzbu7-rzrhAyYSiQTqejM6eqt2Mrmczp', name: 'Wohnungsbauprogramm Eimsbuettel 2022' },
-    { id: '1JFJQOiPMYmo0VZjG48ukoyDmalxH_ZXt', name: 'Wohnungsbauprogramm Eimsbuettel 2023' },
   ];
 
   try {
@@ -286,23 +255,12 @@ async function loadDriveContext() {
       } catch(e) { console.warn('[Drive] Fehler bei', f.name, ':', e.message); }
     }
     if (content.length === 0) return;
-
-    // Batches von max 5 PDFs um 413-Fehler zu vermeiden
-    const BATCH_SIZE = 5;
-    const contextParts = [];
-    for (let i = 0; i < content.length; i += BATCH_SIZE) {
-      const batch = content.slice(i, i + BATCH_SIZE);
-      batch.push({ type: 'text', text: 'Extrahiere die wichtigsten Regelungen, Kennzahlen, Grenzwerte und Anforderungen aus diesen Dokumenten als kompakten Referenztext. Max 800 Wörter, strukturierte Stichpunkte nach Thema.' });
-      try {
-        const resp = await axios.post('https://api.anthropic.com/v1/messages', {
-          model: 'claude-sonnet-4-6', max_tokens: 1500,
-          messages: [{ role: 'user', content: batch }]
-        }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
-        contextParts.push(resp.data.content[0].text);
-        console.log(`[Drive] Batch ${Math.floor(i/BATCH_SIZE)+1} verarbeitet`);
-      } catch(e) { console.warn(`[Drive] Batch ${Math.floor(i/BATCH_SIZE)+1} Fehler:`, e.message); }
-    }
-    driveSystemContext = contextParts.join('\n\n---\n\n');
+    content.push({ type: 'text', text: 'Extrahiere die wichtigsten Regelungen, Kennzahlen und Anforderungen aus diesen Hamburger Dokumenten als kompakten Referenztext für einen B-Plan-Analyseassistenten. Max 1000 Wörter, strukturierte Stichpunkte.' });
+    const resp = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 1500,
+      messages: [{ role: 'user', content }]
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+    driveSystemContext = resp.data.content[0].text;
     console.log('[Drive] Kontext geladen:', driveSystemContext.length, 'Zeichen');
   } catch(e) { console.warn('[Drive] Fehler:', e.message); }
 }
