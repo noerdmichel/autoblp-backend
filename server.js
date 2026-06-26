@@ -46,34 +46,72 @@ async function geocode(adresse) {
     ? `${strasse} ${hausnummer}, ${plz} Hamburg, Germany`
     : `${strasse} ${hausnummer}, Hamburg, Germany`;
 
-  // Photon mit Hamburg-Bounding-Box — verhindert Treffer in anderen Städten
-  // und disambiguiert Straßen die in Hamburg mehrfach existieren (z.B. Marktstraße)
+  // Strategie 0: ALKIS Hauskoordinaten (offiziell, exakt auf Gebäude)
+  try {
+    const alkis = await fetchAlkisKoordinaten(strasse, hausnummer);
+    if (alkis) {
+      return {
+        lon: alkis.lon, lat: alkis.lat,
+        adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+        bezirk: null, stadtteil: null,
+      };
+    }
+  } catch(e) { console.warn(`[Geocode] ALKIS: ${e.message}`); }
+
+  // Photon Strategie 1: gezielt nach Gebäude/Hausnummer suchen (place:house)
+  // Das liefert die exakten Gebäude-Koordinaten, nicht die Straßenmitte
   try {
     const r = await axios.get('https://photon.komoot.io/api/', {
       params: {
         q: query,
-        limit: 5,
+        limit: 10,
         lang: 'de',
-        bbox: '8.4,53.3,10.3,53.75', // Hamburg Bounding Box
+        bbox: '8.4,53.3,10.3,53.75',
+        osm_tag: 'place:house',
       },
       timeout: 12000
     });
     const feats = r.data?.features || [];
-
-    // Bestes Feature: in Hamburg + Hausnummer stimmt überein
     const feat = feats.find(f => {
       const p = f.properties;
       const inHH = p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
-      const hnMatch = !p?.housenumber || p.housenumber.toLowerCase().startsWith(hausnummer.toLowerCase());
+      const hnMatch = p?.housenumber && (
+        p.housenumber.toLowerCase() === hausnummer.toLowerCase() ||
+        p.housenumber.toLowerCase().startsWith(hausnummer.toLowerCase())
+      );
+      return inHH && hnMatch;
+    });
+    if (feat) {
+      const [lon, lat] = feat.geometry.coordinates;
+      console.log(`[Geocode] Photon house OK: lat=${lat}, lon=${lon}, hn=${feat.properties?.housenumber}`);
+      return {
+        lon, lat,
+        adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+        bezirk: feat.properties?.district || feat.properties?.city || null,
+        stadtteil: feat.properties?.suburb || feat.properties?.district || null,
+      };
+    }
+  } catch(e) { console.warn(`[Geocode] Photon house: ${e.message}`); }
+
+  // Photon Strategie 2: allgemeine Suche mit Hamburg-BBox
+  try {
+    const r = await axios.get('https://photon.komoot.io/api/', {
+      params: { q: query, limit: 5, lang: 'de', bbox: '8.4,53.3,10.3,53.75' },
+      timeout: 12000
+    });
+    const feats = r.data?.features || [];
+    const feat = feats.find(f => {
+      const p = f.properties;
+      const inHH = p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
+      const hnMatch = p?.housenumber && p.housenumber.toLowerCase().startsWith(hausnummer.toLowerCase());
       return inHH && hnMatch;
     }) || feats.find(f => {
       const p = f.properties;
       return p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
     });
-
     if (feat) {
       const [lon, lat] = feat.geometry.coordinates;
-      console.log(`[Geocode] Photon OK: lat=${lat}, lon=${lon}, suburb=${feat.properties?.suburb}`);
+      console.log(`[Geocode] Photon general OK: lat=${lat}, lon=${lon}, suburb=${feat.properties?.suburb}`);
       return {
         lon, lat,
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
@@ -107,6 +145,44 @@ async function geocode(adresse) {
   } catch(e) { console.warn(`[Geocode] Nominatim: ${e.message}`); }
 
   throw new Error(`Adresse nicht gefunden: "${adresse}"`);
+}
+
+// ── ALKIS Hauskoordinaten Hamburg ────────────────────────────────────────────
+// Offizielle Hamburger Adressdaten mit exakten Gebäude-Koordinaten
+async function fetchAlkisKoordinaten(strasse, hausnummer) {
+  try {
+    // Hausnummer in Zahl und Zusatz trennen: "20a" → "20" + "a"
+    const m = hausnummer.match(/^(\d+)([a-zA-Z]?)$/);
+    if (!m) return null;
+    const hn = m[1], zusatz = m[2] || '';
+
+    // INSPIRE WFS: Adressen Hauskoordinaten Hamburg
+    // Gibt amtliche ALKIS-Koordinaten zurück — exakter als OSM
+    let filter = `strassenname='${strasse}' AND hausnummer='${hn}'`;
+    if (zusatz) filter += ` AND hausnummernzusatz='${zusatz}'`;
+    
+    const url = `https://geodienste.hamburg.de/HH_WFS_INSPIRE_Adressen?service=WFS&version=2.0.0&request=GetFeature&typeNames=ad:Address&count=1&CQL_FILTER=${encodeURIComponent(filter)}`;
+    const r = await axios.get(url, { timeout: 8000 });
+    const text = r.data;
+
+    // GML Koordinaten extrahieren (ETRS89/UTM32 → WGS84)
+    const posMatch = text.match(/<gml:pos[^>]*>([\d.]+ [\d.]+)<\/gml:pos>/);
+    if (posMatch) {
+      const [x, y] = posMatch[1].split(' ').map(Number);
+      // INSPIRE nutzt Lat/Lon Reihenfolge in EPSG:4326
+      if (x > 50 && y > 5) { // Lat > 50, Lon > 5 = Hamburg
+        console.log(`[ALKIS] ${strasse} ${hausnummer}: lat=${x}, lon=${y}`);
+        return { lat: x, lon: y };
+      }
+      if (y > 50 && x > 5) {
+        console.log(`[ALKIS] ${strasse} ${hausnummer}: lat=${y}, lon=${x}`);
+        return { lat: y, lon: x };
+      }
+    }
+  } catch(e) {
+    console.warn(`[ALKIS] ${e.message}`);
+  }
+  return null;
 }
 
 // ── B-Plan: WFS mit UTM32-BBOX ────────────────────────────────────────────
@@ -257,6 +333,23 @@ app.get('/debug/autocomplete', async (req, res) => {
   try {
     const r = await axios.get(url, { headers, timeout: 8000 });
     res.json({ url, count: r.data.length, results: r.data });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
+// Debug: ALKIS direkt testen
+app.get('/debug/alkis', async (req, res) => {
+  const { strasse, hausnummer, zusatz } = req.query;
+  try {
+    const result = await fetchAlkisKoordinaten(strasse || 'Marktstraße', hausnummer || '20', zusatz || 'a');
+    // Auch rohen WFS-Response zurückgeben
+    let hn = hausnummer || '20', zus = zusatz || 'a';
+    let filter = `strassenname='${strasse || 'Marktstraße'}' AND hausnummer='${hn}'`;
+    if (zus) filter += ` AND hausnummernzusatz='${zus}'`;
+    const url = `https://geodienste.hamburg.de/HH_WFS_INSPIRE_Adressen?service=WFS&version=2.0.0&request=GetFeature&typeNames=ad:Address&count=1&CQL_FILTER=${encodeURIComponent(filter)}`;
+    const r = await axios.get(url, { timeout: 10000 });
+    res.json({ alkisResult: result, rawPreview: r.data.substring(0, 500), url });
   } catch(e) {
     res.json({ error: e.message });
   }
