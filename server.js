@@ -267,7 +267,7 @@ async function loadDriveContext() {
 
 // Beim Server-Start
 buildDriveIndex();
-loadDriveContext();
+// loadDriveContext() — jetzt manuell via POST /admin/build-context
 
 // ── B-Plan: WFS mit UTM32-BBOX ────────────────────────────────────────────
 async function fetchBPlan(lon, lat) {
@@ -408,6 +408,86 @@ app.get('/debug/bplan', async (req, res) => {
 });
 
 // ── Debug: Geocoding testen ───────────────────────────────────────────────
+// ── Admin: Alle Drive-Dokumente einmalig extrahieren und cachen ───────────
+app.post('/admin/build-context', async (req, res) => {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return res.status(400).json({ error: 'Kein API Key' });
+
+  // Alle relevanten Drive-Dokumente (nach Thema gruppiert für bessere Extraktion)
+  const groups = [
+    { theme: 'Hamburger Planungsrecht und Verfahren', ids: [
+      { id: '1jXREkO_CxaaoJ1feiY7IIa7dxjetaC9R', name: 'HBauO' },
+      { id: '1tetvTLOnTmjr5yENmmKCyn_mQPf1PEhV', name: 'BauleitplG_HA' },
+      { id: '1VnUmHYfGn4nYVOcVylOBRHk0zptEluaF', name: 'BauleitplG_HA §3' },
+      { id: '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK', name: 'Kostenbeteiligung' },
+      { id: '17LvTo0I-wqz7Th9X27UeXY8A5OKrP_EZ', name: 'Bürgerbeteiligung' },
+      { id: '1vQLaJNsM-7Dc4pgT4WPBqMnuspWUrBat', name: 'Hamburg macht Pläne' },
+    ]},
+    { theme: 'Klimaschutz und Klimaanpassung Hamburg', ids: [
+      { id: '1AfNzmJu1-tDPYwNLUM8yaXYtuLfV345s', name: 'Hamburger Klimaplan' },
+      { id: '1o5b-Ieowq7qisHpdHLjBsZ0B4XqXKKWI', name: 'KlimaSchG Hamburg' },
+      { id: '1ThWhAaB7hQ3qUPHz2-KBbJUAQTmFm0o3', name: 'Klima Eckpunktepapier' },
+      { id: '1GvU-zfo-0r7XcOY5Xt3eY-XLvHnd_JpH', name: 'Klima Verordnung' },
+      { id: '1TchNtHiD1Wx6gX_KAcN-TQXelu9LTu7M', name: 'Grünes Netz Senatsdrucksache' },
+    ]},
+    { theme: 'Grün, Natur und Baumschutz Hamburg', ids: [
+      { id: '1sCt25LNyo_hy9vFZjsfodSFcEqFaK_lA', name: 'Leitfaden Dachbegrünung' },
+      { id: '1SFFRjkon6hVIurL6M8sIuTZD4haZkXUY', name: 'Baumschutzverordnung 2023' },
+      { id: '1yVi9itqjAhZN1ezzcq6KqDCnXU2mbadg', name: 'Baum Artenschutz Hinweise' },
+      { id: '1gmQABU6FZeZDsTZsGi1FvW7n1YZJeUrA', name: 'Naturschutz Bauvorhaben' },
+      { id: '11jvU2mcldea_XWBiORisAqngsRVXwYzK', name: 'Naturschutzrechtliche Befreiung' },
+    ]},
+    { theme: 'Stadtgestaltung und Einzelhandel Hamburg', ids: [
+      { id: '1WXQ16FY5xt4xKwM1q9nipBVpuo07SmXB', name: 'Fassadenguide Hamburg' },
+      { id: '1Ck9IvCuIZTw7xJsZ5Y3qZekTTTw1rMI4', name: 'Zentrenkonzept Hamburg' },
+      { id: '1xn6EdBoUK_6ma4F8mU9fQX1uxuLneCeH', name: 'Verschattungsstudien' },
+      { id: '1opPY2id3DTHnnH0NdoRHBW4lgyan5ajp', name: 'Stadtplanung Broschüre' },
+    ]},
+    { theme: 'Wohnungsbau und Wohnungsbauprogramme Hamburg', ids: [
+      { id: '13TD3VTpdv7bMqKbioyv490hC5DDco7Sg', name: 'Wohnungsbauprogramm Nord 2025' },
+      { id: '1X5nJCjwlxOqDEYSVLUJMRrfklKTDjokU', name: 'Wohnungsbauprogramm Altona 2024' },
+      { id: '18AdLIxAq3sv0FqTsFOgk7uCUNC9Q9OxZ', name: 'Wohnungsbauprogramm Mitte 2024' },
+      { id: '1MUOts7iXOtcVDxPtgIEzzDyumW-GqiwC', name: 'Wohnungsbauprogramm Harburg' },
+      { id: '1qzbu7-rzrhAyYSiQTqejM6eqt2Mrmczp', name: 'Wohnungsbauprogramm Eimsbüttel 2022' },
+      { id: '1JFJQOiPMYmo0VZjG48ukoyDmalxH_ZXt', name: 'Wohnungsbauprogramm Eimsbüttel 2023' },
+      { id: '1qHpyPVKY10A2BpciWpFBEPaCSCV_HHit', name: 'Wohnungsbauprogramm Mitte 2022' },
+    ]},
+    { theme: 'Bundesrecht Bauleitplanung', ids: [
+      { id: '1M1vzRByzdmNNitLvA55c8LE8h3ZgmVq0', name: 'BauNVO' },
+      { id: '1qVtwq8PmOlZmHoQJC0eBuAHxWhMri9Lp', name: 'BauGB' },
+      { id: '1FfcFu-RxJiE-piikpAQnH1XSUQZa2ECN', name: 'PlanZV' },
+      { id: '1LLQ78TtE1PX5If_Stqlqx7EWaCHMT-Vd', name: 'BNatSchG' },
+      { id: '104uW3psetx_KjoSuJnFD6Zf5Ym904LCp', name: 'WHG' },
+    ]},
+  ];
+
+  const results = [];
+  for (const group of groups) {
+    try {
+      const content = [];
+      for (const f of group.ids) {
+        try {
+          const b64 = await loadDriveFile(f.id);
+          content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: f.name });
+        } catch(e) { console.warn('[Context] Fehler bei', f.name, e.message); }
+      }
+      if (content.length === 0) continue;
+      content.push({ type: 'text', text: `Extrahiere die wichtigsten Regelungen, Empfehlungen, Kennzahlen und Anforderungen aus dem Bereich "${group.theme}" für einen KI-B-Plan-Assistenten. Konkrete Zahlen, Grenzwerte, Empfehlungen. Max 400 Wörter, kompakte Stichpunkte.` });
+      const resp = await axios.post('https://api.anthropic.com/v1/messages', {
+        model: 'claude-sonnet-4-6', max_tokens: 800,
+        messages: [{ role: 'user', content }]
+      }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 120000 });
+      results.push({ theme: group.theme, text: resp.data.content[0].text });
+      console.log('[Context] Gruppe fertig:', group.theme);
+    } catch(e) { console.warn('[Context] Gruppenf fehler:', group.theme, e.message); }
+  }
+
+  // Gesamtkontext zusammenbauen und cachen
+  driveSystemContext = results.map(r => `### ${r.theme}\n${r.text}`).join('\n\n');
+  console.log('[Context] Gesamtkontext:', driveSystemContext.length, 'Zeichen,', results.length, 'Gruppen');
+  res.json({ ok: true, groups: results.length, totalChars: driveSystemContext.length, preview: driveSystemContext.substring(0, 500) });
+});
+
 // ── Debug: Drive-Download testen ─────────────────────────────────────────
 app.get('/debug/drive-download', async (req, res) => {
   const fileId = req.query.id || '1BKx1vJA-bJFX0AdQz4VyfSXqXppQ6voK';
