@@ -14,6 +14,60 @@ app.use(express.json({ limit: '50mb' }));
 
 const HH_WFS = "https://geodienste.hamburg.de";
 
+// ════════════════════════════════════════════════════════════════════════
+// P0-FIX: Geocoder-Cache + Nominatim-Ratenbegrenzung + Backoff
+// Ursache der "Adresse nicht gefunden"-Welle: /api/autocomplete (pro
+// Tastendruck) + mehrere Geocode-Calls pro Analyse, ohne Cache/Limit →
+// Nominatim-Policy (max. 1 Anfrage/s) verletzt → Render-IP zeitweise gesperrt.
+// Lösung: Cache (24 h), serielle Nominatim-Queue mit ≥1,1 s Abstand + Backoff,
+// User-Agent auch für Photon, und Photon-first (Photon limitiert Cloud-IPs
+// weniger streng und liefert Gebäude-Koordinaten).
+// ════════════════════════════════════════════════════════════════════════
+const NOM_UA = 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)';
+const _geoCache = new Map();
+const _acCache  = new Map();
+const GEO_TTL = 1000 * 60 * 60 * 24; // 24 h
+const AC_TTL  = 1000 * 60 * 30;      // 30 min
+const CACHE_MAX = 3000;
+const _geoKey = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+function _cacheGet(m, k, ttl){ const e = m.get(k); return (e && Date.now() - e.t < ttl) ? e.v : undefined; }
+function _cacheSet(m, k, v){ if (m.size >= CACHE_MAX) m.delete(m.keys().next().value); m.set(k, { v, t: Date.now() }); }
+
+// Alle Nominatim-Anfragen seriell mit ≥1,1 s Abstand + Backoff bei 429/503.
+let _nomQueue = Promise.resolve();
+let _nomLast = 0;
+function nominatimGet(url, cfg = {}){
+  const run = _nomQueue.then(() => _nomDo(url, cfg), () => _nomDo(url, cfg));
+  _nomQueue = run.catch(() => {}); // Kette bei Fehlern am Leben halten
+  return run;
+}
+async function _nomDo(url, cfg){
+  const wait = 1100 - (Date.now() - _nomLast);
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  let lastErr;
+  for (let i = 0; i < 2; i++){
+    try {
+      _nomLast = Date.now();
+      return await axios.get(url, Object.assign({ timeout: 9000, headers: { 'User-Agent': NOM_UA } }, cfg));
+    } catch(e){
+      lastErr = e; const st = e.response?.status;
+      if (st === 429 || st === 503){ await new Promise(r => setTimeout(r, 800 * (i + 1))); continue; }
+      throw e; // 403/Ban etc. → schnell scheitern, damit Photon-Fallback greift
+    }
+  }
+  throw lastErr;
+}
+
+// Photon mit User-Agent + leichtem Backoff (Photon sperrt Cloud-IPs sonst auch).
+async function photonGet(params){
+  let lastErr;
+  for (let i = 0; i < 2; i++){
+    try { return await axios.get('https://photon.komoot.io/api/', { params, timeout: 12000, headers: { 'User-Agent': NOM_UA } }); }
+    catch(e){ lastErr = e; const st = e.response?.status; if (st === 429 || st === 503){ await new Promise(r => setTimeout(r, 600 * (i + 1))); continue; } throw e; }
+  }
+  throw lastErr;
+}
+
 // ── WGS84 → UTM32N (EPSG:25832) Näherungsformel für Hamburg ──────────────
 function wgs84ToUtm32(lon, lat) {
   const a = 6378137.0, f = 1/298.257223563;
@@ -38,9 +92,17 @@ function bboxUtm(lon, lat, delta=30) {
   return `${c.x-delta},${c.y-delta},${c.x+delta},${c.y+delta}`;
 }
 
-// ── Geocoding: Photon → Nominatim ─────────────────────────────────────────
-// Fix: PLZ-Erkennung + Photon Hamburg-Bounding-Box + Nominatim structured search
-async function geocode(adresse) {
+// ── Geocoding: Cache-Wrapper → Photon-first → Nominatim-Fallback ──────────
+async function geocode(adresse){
+  const k = _geoKey(adresse);
+  const hit = _cacheGet(_geoCache, k, GEO_TTL);
+  if (hit) return hit;
+  const out = await _geocodeRaw(adresse);
+  _cacheSet(_geoCache, k, out);
+  return out;
+}
+
+async function _geocodeRaw(adresse) {
   // PLZ optional: "Marktstraße 20a, 20357 Hamburg" oder "Marktstraße 20a, Hamburg"
   const m = adresse.match(/^(.+?)\s+(\d+\w*),?\s*(?:(\d{5})\s*)?(?:Hamburg)?$/i);
   if (!m) throw new Error(`Adresse nicht erkennbar: "${adresse}"`);
@@ -50,39 +112,9 @@ async function geocode(adresse) {
     ? `${strasse} ${hausnummer}, ${plz} Hamburg, Germany`
     : `${strasse} ${hausnummer}, Hamburg, Germany`;
 
-  // Strategie 0: Nominatim — bevorzuge echte Gebäude-Koordinaten (nicht highway)
+  // Strategie 1: Photon — gezielt Gebäude/Hausnummer (place:house) → exakte Koords, kein Nominatim-Limit
   try {
-    const buildingUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=de&limit=5&q=${encodeURIComponent(strasse + ' ' + hausnummer + ', Hamburg')}`;
-    const br = await axios.get(buildingUrl, { timeout: 8000, headers: { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' } });
-    const data = br.data || [];
-    // Bevorzuge Gebäude, POIs, historic — nicht Straßen (highway)
-    const best = data.find(x => x.class !== 'highway') || data[0];
-    if (best) {
-      const isExact = best.class !== 'highway';
-      console.log(`[Geocode] Nominatim: lat=${best.lat}, lon=${best.lon}, class=${best.class}, exact=${isExact}`);
-      return {
-        lon: parseFloat(best.lon), lat: parseFloat(best.lat),
-        adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
-        bezirk: best.address?.city_district || best.address?.suburb || null,
-        stadtteil: best.address?.suburb || null,
-        positionExakt: isExact, // Signal fürs Frontend: Marker-Hinweis
-      };
-    }
-  } catch(e) { console.warn(`[Geocode] Gebäude-Suche: ${e.message}`); }
-
-  // Photon Strategie 1: gezielt nach Gebäude/Hausnummer suchen (place:house)
-  // Das liefert die exakten Gebäude-Koordinaten, nicht die Straßenmitte
-  try {
-    const r = await axios.get('https://photon.komoot.io/api/', {
-      params: {
-        q: query,
-        limit: 10,
-        lang: 'de',
-        bbox: '8.4,53.3,10.3,53.75',
-        osm_tag: 'place:house',
-      },
-      timeout: 12000
-    });
+    const r = await photonGet({ q: query, limit: 10, lang: 'de', bbox: '8.4,53.3,10.3,53.75', osm_tag: 'place:house' });
     const feats = r.data?.features || [];
     const feat = feats.find(f => {
       const p = f.properties;
@@ -101,26 +133,29 @@ async function geocode(adresse) {
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
         bezirk: feat.properties?.district || feat.properties?.city || null,
         stadtteil: feat.properties?.suburb || feat.properties?.district || null,
+        positionExakt: true,
       };
     }
   } catch(e) { console.warn(`[Geocode] Photon house: ${e.message}`); }
 
-  // Photon Strategie 2: allgemeine Suche mit Hamburg-BBox
+  // Strategie 2: Photon allgemein mit Hamburg-BBox
   try {
-    const r = await axios.get('https://photon.komoot.io/api/', {
-      params: { q: query, limit: 5, lang: 'de', bbox: '8.4,53.3,10.3,53.75' },
-      timeout: 12000
-    });
+    const r = await photonGet({ q: query, limit: 5, lang: 'de', bbox: '8.4,53.3,10.3,53.75' });
     const feats = r.data?.features || [];
-    const feat = feats.find(f => {
+    let hnExact = true;
+    let feat = feats.find(f => {
       const p = f.properties;
       const inHH = p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
       const hnMatch = p?.housenumber && p.housenumber.toLowerCase().startsWith(hausnummer.toLowerCase());
       return inHH && hnMatch;
-    }) || feats.find(f => {
-      const p = f.properties;
-      return p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
     });
+    if (!feat) {
+      hnExact = false;
+      feat = feats.find(f => {
+        const p = f.properties;
+        return p?.country === 'Germany' && (p?.city === 'Hamburg' || p?.state === 'Hamburg');
+      });
+    }
     if (feat) {
       const [lon, lat] = feat.geometry.coordinates;
       console.log(`[Geocode] Photon general OK: lat=${lat}, lon=${lon}, suburb=${feat.properties?.suburb}`);
@@ -129,21 +164,37 @@ async function geocode(adresse) {
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
         bezirk: feat.properties?.district || feat.properties?.city || null,
         stadtteil: feat.properties?.suburb || feat.properties?.district || null,
+        positionExakt: hnExact,
       };
     }
   } catch(e) { console.warn(`[Geocode] Photon: ${e.message}`); }
 
-  // Nominatim Fallback — structured search für bessere Eindeutigkeit
+  // Strategie 3: Nominatim — bevorzuge echte Gebäude-Koordinaten (nicht highway)
+  try {
+    const buildingUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=de&limit=5&q=${encodeURIComponent(strasse + ' ' + hausnummer + ', Hamburg')}`;
+    const br = await nominatimGet(buildingUrl);
+    const data = br.data || [];
+    const best = data.find(x => x.class !== 'highway') || data[0];
+    if (best) {
+      const isExact = best.class !== 'highway';
+      console.log(`[Geocode] Nominatim: lat=${best.lat}, lon=${best.lon}, class=${best.class}, exact=${isExact}`);
+      return {
+        lon: parseFloat(best.lon), lat: parseFloat(best.lat),
+        adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
+        bezirk: best.address?.city_district || best.address?.suburb || null,
+        stadtteil: best.address?.suburb || null,
+        positionExakt: isExact,
+      };
+    }
+  } catch(e) { console.warn(`[Geocode] Gebäude-Suche: ${e.message}`); }
+
+  // Strategie 4: Nominatim structured — bessere Eindeutigkeit
   try {
     const params = plz
       ? { street: `${hausnummer} ${strasse}`, postalcode: plz, city: 'Hamburg', country: 'de', format: 'json', limit: 1, addressdetails: 1 }
       : { street: `${hausnummer} ${strasse}`, city: 'Hamburg', country: 'de', format: 'json', limit: 1, addressdetails: 1 };
 
-    const r = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params,
-      timeout: 12000,
-      headers: { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' }
-    });
+    const r = await nominatimGet('https://nominatim.openstreetmap.org/search', { params });
     if (r.data?.length > 0) {
       const d = r.data[0];
       console.log(`[Geocode] Nominatim OK: lat=${d.lat}, lon=${d.lon}`);
@@ -152,6 +203,7 @@ async function geocode(adresse) {
         adresseFormatiert: `${strasse} ${hausnummer}, Hamburg`,
         bezirk: d.address?.city_district || d.address?.suburb || null,
         stadtteil: d.address?.suburb || d.address?.neighbourhood || null,
+        positionExakt: false,
       };
     }
   } catch(e) { console.warn(`[Geocode] Nominatim: ${e.message}`); }
@@ -612,11 +664,10 @@ app.post('/api/extract-training', async (req, res) => {
 // ── Debug: Rohe Autocomplete-Antwort von Nominatim ──────────────────────
 app.get('/debug/autocomplete', async (req, res) => {
   const q = req.query.q || 'Marktstraße';
-  const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
   const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=de';
   const url = `${base}&q=${encodeURIComponent(q + ', Hamburg, Germany')}`;
   try {
-    const r = await axios.get(url, { headers, timeout: 8000 });
+    const r = await nominatimGet(url);
     res.json({ url, count: r.data.length, results: r.data });
   } catch(e) {
     res.json({ error: e.message });
@@ -655,7 +706,11 @@ app.get('/api/autocomplete', async (req, res) => {
   const q = req.query.q;
   if (!q || q.length < 3) return res.json([]);
 
-  const headers = { 'User-Agent': 'AutoBLP-Hamburg/1.0 (michel.slottag@outlook.com)' };
+  // Cache: verhindert Nominatim-Sperren bei Tippen pro Tastendruck
+  const ck = _geoKey(q);
+  const cached = _cacheGet(_acCache, ck, AC_TTL);
+  if (cached) return res.json(cached);
+
   const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=de';
 
   // Query parsen: Straße + Hausnummer trennen
@@ -679,7 +734,7 @@ app.get('/api/autocomplete', async (req, res) => {
 
       for (const query of queries) {
         const url = `${base}&q=${encodeURIComponent(query + ', Hamburg')}`;
-        const r = await axios.get(url, { headers, timeout: 8000 });
+        const r = await nominatimGet(url);
         const data = r.data || [];
         console.log(`[AC] Adresse "${query}" → ${data.length} Treffer`);
 
@@ -702,7 +757,7 @@ app.get('/api/autocomplete', async (req, res) => {
     } else {
       // Nur Straßenname: Straßen suchen und als Vorschlag anbieten
       const url = `${base}&q=${encodeURIComponent(q + ', Hamburg')}`;
-      const r = await axios.get(url, { headers, timeout: 8000 });
+      const r = await nominatimGet(url);
       const data = r.data || [];
       console.log(`[AC] Straße "${q}" → ${data.length} Treffer`);
 
@@ -725,6 +780,7 @@ app.get('/api/autocomplete', async (req, res) => {
     }
 
     console.log(`[Autocomplete] "${q}" → ${items.length} Items`);
+    _cacheSet(_acCache, ck, items);
     res.json(items);
   } catch (err) {
     console.error(`[Autocomplete] Fehler: ${err.message}`);
@@ -733,8 +789,59 @@ app.get('/api/autocomplete', async (req, res) => {
 });
 
 app.get('/api/polygon', async (req, res) => res.json({ bebauungsplaene: [], erhaltungsgebiete: [], anzahl: 0 }));
+
+// ════════════════════════════════════════════════════════════════════════
+// NEU: Assistenten-Chatbot  ·  POST /api/chat
+// Nutzt den vorhandenen ANTHROPIC_API_KEY + driveSystemContext (sobald via
+// /admin/build-context geladen) → dokumentengestützte Antworten.
+// Frontend-Widget sendet { messages:[{role,content}], kontext:"<Analyse>" }.
+// ════════════════════════════════════════════════════════════════════════
+const HAMBURG_KONTEXT = `
+GRUNDLAGEN BAULEITPLANUNG HAMBURG
+- Stadtstaat: Bezirksämter (Altona, Eimsbüttel, Mitte, Nord, Wandsbek, Bergedorf, Harburg) führen viele Planverfahren.
+- "festgestellt" = in Kraft. Baustufenpläne (1950er/60er) = übergeleitete, i.d.R. EINFACHE B-Pläne (§ 173 Abs. 3 BBauG i.V.m. § 30 Abs. 3 BauGB), ergänzend § 34. Sie kennen KEINE GRZ/GFZ nach BauNVO, sondern die BAUSTUFENTAFEL (z.B. "W 4 g" = Wohngebiet, viergeschossig, geschlossen). GRZ/GFZ sind dann ABGELEITET, nicht festgesetzt.
+- § 30 (qualifiziert/einfach), § 34 (Innenbereich, Einfügen), § 35 (Außenbereich).
+ERHALTUNGSVERORDNUNG § 172 — TYP IST ENTSCHEIDEND
+- Nr. 1 städtebaulich/gestalterisch: Rückbau/Änderung/Errichtung genehmigungspflichtig.
+- Nr. 2 SOZIAL (Milieuschutz): zusätzlich Modernisierung, Grundrissänderung, Umwandlung Miet→Eigentum genehmigungspflichtig.
+STANDARD-PRÜFUNGEN HAMBURG
+- Kampfmittelverdacht (Standard!), Altlasten (BUKEA), Bodenrichtwert (Gutachterausschuss/BORIS), Baumschutz (HmbBaumSchVO), Artenschutz § 44 BNatSchG, Entwässerung (HAMBURG WASSER), Lärm, Denkmalschutz (Einzeldenkmal vs. Ensemble).
+DATEN: Urban Data Platform / LGV (WFS/WMS), XPlanung. XPlanung-Daten können der Urschrift nachlaufen → im Zweifel Bezirksamt/Original.
+`;
+const CHAT_SYSTEM = `Du bist der AutoBLP-Assistent für Bauleitplanung in Hamburg (für private Planungsbüros).
+- Antworte auf Deutsch, präzise, knapp, handlungsorientiert; nenne zuständige Stellen (Bezirksamt, BUKEA, LGV, Kampfmittelräumdienst, HAMBURG WASSER, Gutachterausschuss).
+- Stütze dich auf den KONTEXT (aktuelle Analyse) und das HAMBURG-FACHWISSEN; erfinde keine Festsetzungen.
+- Baustufenpläne: GRZ/GFZ abgeleitet, nicht nach BauNVO festgesetzt. § 172: Typ (sozial/Milieuschutz vs. städtebaulich) + konkrete Folgen benennen oder zur Verifizierung beim Bezirksamt raten.
+- Du gibst fachliche Orientierung, KEINE rechtsverbindliche Auskunft und keine Rechtsberatung.`;
+
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { messages, kontext } = req.body || {};
+    if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages[] erforderlich' });
+    const safe = messages
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-12)
+      .map(m => ({ role: m.role, content: m.content.slice(0, 4000) }));
+
+    const system = CHAT_SYSTEM
+      + '\n\n=== HAMBURG-FACHWISSEN ===\n' + HAMBURG_KONTEXT
+      + (driveSystemContext ? '\n\n=== HAMBURGER PLANUNGSGRUNDLAGEN (aus Dokumenten) ===\n' + driveSystemContext : '')
+      + (kontext ? '\n\n=== AKTUELL GELADENE ANALYSE ===\n' + String(kontext).slice(0, 3000) : '\n\n(Keine Analyse geladen — allgemein zu Hamburger Bauleitplanung antworten.)');
+
+    const r = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6', max_tokens: 1024, system, messages: safe
+    }, { headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, timeout: 55000 });
+
+    const text = (r.data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    res.json({ text: text || '(keine Antwort)' });
+  } catch (e) {
+    console.error('[Chat] Fehler:', e.response?.data || e.message);
+    res.status(502).json({ error: String(e.response?.data?.error?.message || e.message) });
+  }
+});
+
 app.get('/health', (_, res) => res.json({ status: 'ok', service: 'AutoBLP WFS Proxy' }));
-app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/debug/bplan', '/debug/geocode?adresse=...'] }));
+app.get('/', (_, res) => res.json({ status: 'ok', endpoints: ['/health', '/api/analyse?adresse=...', '/api/chat', '/debug/bplan', '/debug/geocode?adresse=...'] }));
 
 app.listen(PORT, () => console.log(`AutoBLP Backend läuft auf Port ${PORT}`));
 
